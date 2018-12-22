@@ -75,6 +75,25 @@ def process_command(user,room,cmd):
   log.debug("user=%s send command=%s"%(user,cmd))
   log.debug("cur_state=%s"%cur_state)
 
+  # в любом состоянии отмена - всё отменяет:
+  if re.search('^!stop$', cmd.lower()) is not None or \
+      re.search('^!стоп$', cmd.lower()) is not None or \
+      re.search('^!отмена$', cmd.lower()) is not None or \
+      re.search('^!cancel$', cmd.lower()) is not None:
+    data["users"][user][room]["state"]="listen_command"
+    send_message(room,'Отменил текущий режим (%s) и перешёл в начальный режим ожидания команд. Жду команд.'%session_data["state"])
+    return True
+  elif re.search('^!стат$', cmd.lower()) is not None or \
+      re.search('^!состояние$', cmd.lower()) is not None or \
+      re.search('^!чат$', cmd.lower()) is not None or \
+      re.search('^!chat$', cmd.lower()) is not None or \
+      re.search('^!room$', cmd.lower()) is not None or \
+      re.search('^!stat$', cmd.lower()) is not None:
+    send_message(room,"Текущее состояние: %s"%session_data["state"])
+    if session_data["state"]=="dialog":
+      send_message(room,'Текущая комната: "%s"'%session_data["cur_dialog"]["title"])
+    return True
+
   if cur_state == "listen_command":
     if re.search('^!*\?$', cmd.lower()) is not None or \
       re.search('^!*h$', cmd.lower()) is not None or \
@@ -92,65 +111,52 @@ def process_command(user,room,cmd):
       return login_command(user,room,cmd)
     # dialogs
     elif re.search('^!dialogs$', cmd.lower()) is not None or \
+      re.search('^!диалоги$', cmd.lower()) is not None or \
+      re.search('^!чаты$', cmd.lower()) is not None or \
+      re.search('^!комнаты$', cmd.lower()) is not None or \
+      re.search('^!chats$', cmd.lower()) is not None or \
+      re.search('^!rooms$', cmd.lower()) is not None or \
       re.search('^!d$', cmd.lower()) is not None:
       return dialogs_command(user,room,cmd)
 
   elif cur_state == "wait_vk_id":
-    if re.search('^!stop$', cmd.lower()) is not None or \
-        re.search('^!отмена$', cmd.lower()) is not None or \
-        re.search('^!cancel$', cmd.lower()) is not None:
-      data["users"][user][room]["state"]="listen_command"
-      send_message(room,'Отменил ожидание кода VK. Перешёл в начальный режим. Жду команд.')
-    else:
-      # парсинг ссылки
-      m = re.search('https://oauth\.vk\.com/blank\.html#access_token=[a-z0-9]*&expires_in=[0-9]*&user_id=[0-9]*',cmd)
-      if m:
-        code = extract_unique_code(m.group(0))
-        try:
-          vk_user = verifycode(code)
-        except:
-          send_message(room, 'Неверная ссылка, попробуйте ещё раз!')
-          log.warning("error auth url from user=%s"%user)
-          return False
-        send_message(room,'Вход выполнен в аккаунт {} {}!'.format(vk_user['first_name'], vk_user['last_name']))
-        data["users"][user][room]["vk_id"]=code
-        data["users"][user][room]["state"]="listen_command"
-        # сохраняем на диск:
-        save_data(data)
-
-  elif cur_state == "wait_dialog_index":
-    if re.search('^!stop$', cmd.lower()) is not None or \
-        re.search('^!отмена$', cmd.lower()) is not None or \
-        re.search('^!cancel$', cmd.lower()) is not None:
-      data["users"][user][room]["state"]="listen_command"
-      send_message(room,'Отменил ожидание номера диалога. Перешёл в начальный режим. Жду команд.')
-    else:
+    # парсинг ссылки
+    m = re.search('https://oauth\.vk\.com/blank\.html#access_token=[a-z0-9]*&expires_in=[0-9]*&user_id=[0-9]*',cmd)
+    if m:
+      code = extract_unique_code(m.group(0))
       try:
-        index=int(cmd)
+        vk_user = verifycode(code)
       except:
-        send_message(room,"пожалуйста, введите номер диалога или команды !stop, !отмена, !cancel")
-        return True
-      if index not in session_data["dialogs_list"]:
-        send_message(room,"Неверный номер диалога, введите верный номер диалога или команды !stop, !отмена, !cancel")
-        return True
-      cur_dialog=session_data["dialogs_list"][index]
-      send_message(room,"Переключаю Вас на диалог с: %s"%cur_dialog["title"])
-      data["users"][user][room]["cur_dialog"]=cur_dialog
-      data["users"][user][room]["state"]="dialog"
+        send_message(room, 'Неверная ссылка, попробуйте ещё раз!')
+        log.warning("error auth url from user=%s"%user)
+        return False
+      send_message(room,'Вход выполнен в аккаунт {} {}!'.format(vk_user['first_name'], vk_user['last_name']))
+      data["users"][user][room]["vk_id"]=code
+      data["users"][user][room]["state"]="listen_command"
       # сохраняем на диск:
       save_data(data)
 
+  elif cur_state == "wait_dialog_index":
+    try:
+      index=int(cmd)
+    except:
+      send_message(room,"пожалуйста, введите номер диалога или команды !stop, !отмена, !cancel")
+      return True
+    if index not in session_data["dialogs_list"]:
+      send_message(room,"Неверный номер диалога, введите верный номер диалога или команды !stop, !отмена, !cancel")
+      return True
+    cur_dialog=session_data["dialogs_list"][index]
+    send_message(room,"Переключаю Вас на диалог с: %s"%cur_dialog["title"])
+    data["users"][user][room]["cur_dialog"]=cur_dialog
+    data["users"][user][room]["state"]="dialog"
+    # сохраняем на диск:
+    save_data(data)
+
   elif cur_state == "dialog":
-    if re.search('^!stop$', cmd.lower()) is not None or \
-        re.search('^!отмена$', cmd.lower()) is not None or \
-        re.search('^!cancel$', cmd.lower()) is not None:
-      data["users"][user][room]["state"]="listen_command"
-      send_message(room,'Отменил ожидание номера диалога. Перешёл в начальный режим. Жду команд.')
-    else:
-      dialog=session_data["cur_dialog"]
-      if vk_send_text(session_data["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
-        log.error("error vk_send_text() for user %s"%user)
-        send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
+    dialog=session_data["cur_dialog"]
+    if vk_send_text(session_data["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
+      log.error("error vk_send_text() for user %s"%user)
+      send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
 
   return True
 
