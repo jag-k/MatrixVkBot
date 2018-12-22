@@ -99,7 +99,7 @@ def process_command(user,room,cmd):
     if re.search('^!stop$', cmd.lower()) is not None or \
         re.search('^!отмена$', cmd.lower()) is not None or \
         re.search('^!cancel$', cmd.lower()) is not None:
-      data[user][room]["state"]="listen_command"
+      data["users"][user][room]["state"]="listen_command"
       send_message(room,'Отменил ожидание кода VK. Перешёл в начальный режим. Жду команд.')
     else:
       # парсинг ссылки
@@ -122,7 +122,7 @@ def process_command(user,room,cmd):
     if re.search('^!stop$', cmd.lower()) is not None or \
         re.search('^!отмена$', cmd.lower()) is not None or \
         re.search('^!cancel$', cmd.lower()) is not None:
-      data[user][room]["state"]="listen_command"
+      data["users"][user][room]["state"]="listen_command"
       send_message(room,'Отменил ожидание номера диалога. Перешёл в начальный режим. Жду команд.')
     else:
       try:
@@ -139,6 +139,18 @@ def process_command(user,room,cmd):
       data["users"][user][room]["state"]="dialog"
       # сохраняем на диск:
       save_data(data)
+
+  elif cur_state == "dialog":
+    if re.search('^!stop$', cmd.lower()) is not None or \
+        re.search('^!отмена$', cmd.lower()) is not None or \
+        re.search('^!cancel$', cmd.lower()) is not None:
+      data["users"][user][room]["state"]="listen_command"
+      send_message(room,'Отменил ожидание номера диалога. Перешёл в начальный режим. Жду команд.')
+    else:
+      dialog=session_data["cur_dialog"]
+      if vk_send_text(session_data["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
+        log.error("error vk_send_text() for user %s"%user)
+        send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
 
   return True
 
@@ -166,6 +178,20 @@ def verifycode(code):
 def info_extractor(info):
     info = info[-1].url[8:-1].split('.')
     return info
+
+def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
+  global log
+  try:
+    session = get_session(vk_id)
+    api = vk.API(session, v=VK_API_VERSION)
+    if group:
+      api.messages.send(chat_id=chat_id, message=message, forward_messages=forward_messages)
+    else:
+      api.messages.send(user_id=chat_id, message=message, forward_messages=forward_messages)
+  except:
+    log.error("vk_send_text API or network error")
+    return False
+  return True
 
 def dialogs_command(user,room,cmd):
   global log
@@ -215,12 +241,12 @@ def get_dialogs(vk_id):
   for chat in dialogs[1:]:
     if 'chat_id' in chat:
       chat['title'] = replace_shields(chat['title'])
-      order.append({'title': chat['title'], 'id': 'group' + str(chat['chat_id'])})
+      order.append({'title': chat['title'], 'id': chat['chat_id'], 'group': True})
     elif chat['uid'] > 0:
-      order.append({'title': None, 'id': chat['uid']})
+      order.append({'title': None, 'id': chat['uid'], 'group': False})
       users_ids.append(chat['uid'])
     elif chat['uid'] < 0:
-      order.append({'title': None, 'id': chat['uid']})
+      order.append({'title': None, 'id': chat['uid'],'group': False})
       group_ids.append(chat['uid'])
 
   for g in group_ids:
