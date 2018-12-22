@@ -21,6 +21,15 @@ import os
 import pickle
 import re
 import threading
+import redis
+import requests
+import traceback
+import ujson
+import vk
+import wget
+from PIL import Image
+from credentials import token, vk_app_id
+from vk_messages import VkMessage, VkPolling
 
 from matrix_client.client import MatrixClient
 from matrix_client.api import MatrixRequestError
@@ -31,6 +40,134 @@ client = None
 log = None
 data={}
 lock = None
+
+vk_threads = {}
+
+vk_dialogs = {}
+
+VK_API_VERSION = '3.0'
+
+currentchat = {}
+
+link = 'https://oauth.vk.com/authorize?client_id={}&' \
+       'display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=friends,messages,offline,docs,photos,video' \
+       '&response_type=token&v={}'.format(vk_app_id, VK_API_VERSION)
+
+
+def process_command(user,room,cmd):
+  global client
+  global log
+  global data
+  answer=None
+  session_data=None
+
+  if user not in data["users"]:
+    data["users"][user]={}
+  if room not in data["users"][user]:
+    data["users"][user][room]={}
+    data["users"][user][room]["state"]="listen_command"
+
+  session_data=data["users"][user][room]
+
+  cur_state=data["users"][user][room]["state"]
+
+  if cur_state == "listen_command":
+    if re.search('^!*\?$', cmd.lower()) is not None or \
+      re.search('^!*h$', cmd.lower()) is not None or \
+      re.search('^!*помощь', cmd.lower()) is not None or \
+      re.search('^!*справка', cmd.lower()) is not None or \
+      re.search('^!*help', cmd.lower()) is not None:
+      answer="""!login - авторизоваться в ВК
+!logout - выйти из ВК
+!search - поиск диалогов в ВК
+      """ 
+      return send_message(room,answer)
+
+    # login
+    elif re.search('^!login .*', cmd.lower()) is not None:
+      return login_command(user,room,cmd)
+  elif cur_state == "wait_vk_id":
+    if re.search('^!stop$', cmd.lower()) is not None or \
+        re.search('^!отмена$', cmd.lower()) is not None or \
+        re.search('^!cancel$', cmd.lower()) is not None:
+      data[user][room]["state"]="listen_command"
+      send_message(room,'Отменил ожидание кода VK. Перешёл в начальный режим. Жду команд.')
+    elif:
+      # FIXME тут парсинг ссылки наверное должен быть
+      m = re.search('https://oauth\.vk\.com/blank\.html#access_token=[a-z0-9]*&expires_in=[0-9]*&user_id=[0-9]*',cmd)
+      if m:
+        code = extract_unique_code(m.group(0))
+        try:
+          user = verifycode(code)
+          send_message(room,'Вход выполнен в аккаунт {} {}!'.format(user['first_name'], user['last_name']))
+          data[user][room]["vk_id"]=code
+          # сохраняем на диск:
+          save_data(data)
+        except:
+          send_message(room, 'Неверная ссылка, попробуйте ещё раз!')
+    
+  return True
+
+def extract_unique_code(text):
+    # Extracts the unique_code from the sent /start command.
+    try:
+        return text[45:].split('&')[0]
+    except:
+        return None
+
+
+def verifycode(code):
+    session = vk.Session(access_token=code)
+    api = vk.API(session, v=VK_API_VERSION)
+    return dict(api.account.getProfileInfo(fields=[]))
+
+
+def info_extractor(info):
+    info = info[-1].url[8:-1].split('.')
+    return info
+
+def login_command(user,room,cmd):
+  global lock
+  global data
+  session_data=data[user][room]
+  if "vk_id" not in session_data or session_data["vk_id"]=None:
+    send_message(room,'Нажмите по ссылке ниже. Откройте её и согласитесь. После скопируйте текст из адресной строки и отправьте эту ссылку мне сюда')
+    send_message(room,link)
+    data[user][room]["state"]="wait_vk_id"
+  else:
+    send_message(room,'Вход уже выполнен!\n/logout для выхода.')
+
+def check_thread(uid):
+    for th in threading.enumerate():
+        if th.getName() == 'vk' + str(uid):
+            return False
+    return True
+
+def replace_shields(text):
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&amp;', '&')
+    text = text.replace('&copy;', '©')
+    text = text.replace('&reg;', '®')
+    text = text.replace('&laquo;', '«')
+    text = text.replace('&raquo;', '«')
+    text = text.replace('&deg;', '°')
+    text = text.replace('&trade;', '™')
+    text = text.replace('&plusmn;', '±')
+    return text
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def save_data(data):
   global log
@@ -75,38 +212,6 @@ def load_data():
     data["users"]={}
     save_data(data)
   return data
-
-def process_command(user,room,cmd):
-  global client
-  global log
-  global data
-  answer=None
-  cur_data=None
-
-  if user not in data["users"]:
-    data["users"][user]={}
-  if room not in data["users"][user]:
-    data["users"][user][room]={}
-    data["users"][user][room]["alarms"]=[]
-
-  cur_data=data["users"][user][room]
-
-  if re.search('^!*\?$', cmd.lower()) is not None or \
-    re.search('^!*h$', cmd.lower()) is not None or \
-    re.search('^!*помощь', cmd.lower()) is not None or \
-    re.search('^!*справка', cmd.lower()) is not None or \
-    re.search('^!*help', cmd.lower()) is not None:
-    answer="""!login - авторизоваться в ВК
-!logout - выйти из ВК
-!search - поиск диалогов в ВК
-""" 
-    return send_message(room,answer)
-
-  # login
-  elif re.search('^!login .*', cmd.lower()) is not None:
-    return process_login(user,room,cmd)
-  
-  return True
 
 
 def send_html(room_id,html):
