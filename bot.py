@@ -92,7 +92,7 @@ def process_command(user,room,cmd):
         re.search('^!cancel$', cmd.lower()) is not None:
       data[user][room]["state"]="listen_command"
       send_message(room,'Отменил ожидание кода VK. Перешёл в начальный режим. Жду команд.')
-    elif:
+    else:
       # FIXME тут парсинг ссылки наверное должен быть
       m = re.search('https://oauth\.vk\.com/blank\.html#access_token=[a-z0-9]*&expires_in=[0-9]*&user_id=[0-9]*',cmd)
       if m:
