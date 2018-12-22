@@ -90,6 +90,10 @@ def process_command(user,room,cmd):
     # login
     elif re.search('^!login$', cmd.lower()) is not None:
       return login_command(user,room,cmd)
+    # dialogs
+    elif re.search('^!dialogs$', cmd.lower()) is not None or \
+      re.search('^!d$', cmd.lower()) is not None:
+      return dialogs_command(user,room,cmd)
 
   elif cur_state == "wait_vk_id":
     if re.search('^!stop$', cmd.lower()) is not None or \
@@ -98,7 +102,7 @@ def process_command(user,room,cmd):
       data[user][room]["state"]="listen_command"
       send_message(room,'Отменил ожидание кода VK. Перешёл в начальный режим. Жду команд.')
     else:
-      # FIXME тут парсинг ссылки наверное должен быть
+      # парсинг ссылки
       m = re.search('https://oauth\.vk\.com/blank\.html#access_token=[a-z0-9]*&expires_in=[0-9]*&user_id=[0-9]*',cmd)
       if m:
         code = extract_unique_code(m.group(0))
@@ -113,7 +117,29 @@ def process_command(user,room,cmd):
         data["users"][user][room]["state"]="listen_command"
         # сохраняем на диск:
         save_data(data)
-  
+
+  elif cur_state == "wait_dialog_index":
+    if re.search('^!stop$', cmd.lower()) is not None or \
+        re.search('^!отмена$', cmd.lower()) is not None or \
+        re.search('^!cancel$', cmd.lower()) is not None:
+      data[user][room]["state"]="listen_command"
+      send_message(room,'Отменил ожидание номера диалога. Перешёл в начальный режим. Жду команд.')
+    else:
+      try:
+        index=int(cmd)
+      except:
+        send_message(room,"пожалуйста, введите номер диалога или команды !stop, !отмена, !cancel")
+        return True
+      if index not in session_data["dialogs_list"]:
+        send_message(room,"Неверный номер диалога, введите верный номер диалога или команды !stop, !отмена, !cancel")
+        return True
+      cur_dialog=session_data["dialogs_list"][index]
+      send_message(room,"Переключаю Вас на диалог с: %s"%cur_dialog["title"])
+      data["users"][user][room]["cur_dialog"]=cur_dialog
+      data["users"][user][room]["state"]="dialog"
+      # сохраняем на диск:
+      save_data(data)
+
   return True
 
 def extract_unique_code(text):
@@ -123,6 +149,13 @@ def extract_unique_code(text):
     except:
         return None
 
+def get_session(token):
+    return vk.Session(access_token=token)
+
+def get_tses(session):
+    api = vk.API(session, v=VK_POLLING_VERSION)
+    ts = api.messages.getLongPollServer(need_pts=1)
+    return ts['ts'], ts['pts']
 
 def verifycode(code):
     session = vk.Session(access_token=code)
@@ -133,6 +166,89 @@ def verifycode(code):
 def info_extractor(info):
     info = info[-1].url[8:-1].split('.')
     return info
+
+def dialogs_command(user,room,cmd):
+  global log
+  global lock
+  global data
+  log.debug("dialogs_command()")
+  session_data=data["users"][user][room]
+  if "vk_id" not in session_data or session_data["vk_id"]==None:
+    send_message(room,'Вы не вошли в ВК - используйте !login для входа')
+    return True
+  vk_id=session_data["vk_id"]
+  dialogs=get_dialogs(vk_id)
+  if dialogs == None:
+    send_message(room,'Не смог получить спиоок бесед из ВК - попробуйте позже :-(')
+    log.error("get_dialogs() for user=%s"%user)
+    return False
+
+  # Формируем список диалогов:
+  send_message(room,"Выберите диалог:")
+  message=""
+  index=1
+  dialogs_list={}
+  for item in dialogs:
+    dialogs_list[index]=item
+    message+="%d. "%index
+    message+=item["title"]
+    message+="\n"
+    index+=1
+  send_message(room,message)
+  data["users"][user][room]["state"]="wait_dialog_index"
+  data["users"][user][room]["dialogs_list"]=dialogs_list
+  return True
+
+def get_dialogs(vk_id):
+  global log
+  # Формируем структуры:
+  order = []
+  users_ids = []
+  group_ids = []
+  positive_group_ids = []
+  try:
+    api = vk.API(get_session(vk_id), v=VK_API_VERSION)
+    dialogs = api.messages.getDialogs(count=200)
+  except:
+    log.error("get dialogs from VK API")
+    return None
+  for chat in dialogs[1:]:
+    if 'chat_id' in chat:
+      chat['title'] = replace_shields(chat['title'])
+      order.append({'title': chat['title'], 'id': 'group' + str(chat['chat_id'])})
+    elif chat['uid'] > 0:
+      order.append({'title': None, 'id': chat['uid']})
+      users_ids.append(chat['uid'])
+    elif chat['uid'] < 0:
+      order.append({'title': None, 'id': chat['uid']})
+      group_ids.append(chat['uid'])
+
+  for g in group_ids:
+    positive_group_ids.append(str(g)[1:])
+
+  if users_ids:
+    users = api.users.get(user_ids=users_ids, fields=['first_name', 'last_name', 'uid'])
+  else:
+    users = []
+
+  if positive_group_ids:
+    groups = api.groups.getById(group_ids=positive_group_ids, fields=[])
+  else:
+    groups = []
+
+  for output in order:
+    if output['title'] == ' ... ' or not output['title']:
+      if output['id'] > 0:
+        for x in users:
+          if x['uid'] == output['id']:
+            output['title'] = '{} {}'.format(x['first_name'], x['last_name'])
+            break
+      else:
+        for f in groups:
+          if str(f['gid']) == str(output['id'])[1:]:
+            output['title'] = '{}'.format(f['name'])
+            break
+  return order
 
 def login_command(user,room,cmd):
   global lock
