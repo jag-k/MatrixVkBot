@@ -21,15 +21,11 @@ import os
 import pickle
 import re
 import threading
-import redis
 import requests
 import traceback
-import ujson
 import vk
 import wget
 from PIL import Image
-from credentials import token, vk_app_id
-from vk_messages import VkMessage, VkPolling
 
 from matrix_client.client import MatrixClient
 from matrix_client.api import MatrixRequestError
@@ -51,7 +47,7 @@ currentchat = {}
 
 link = 'https://oauth.vk.com/authorize?client_id={}&' \
        'display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=friends,messages,offline,docs,photos,video' \
-       '&response_type=token&v={}'.format(vk_app_id, VK_API_VERSION)
+       '&response_type=token&v={}'.format(conf.vk_app_id, VK_API_VERSION)
 
 
 def process_command(user,room,cmd):
@@ -60,6 +56,11 @@ def process_command(user,room,cmd):
   global data
   answer=None
   session_data=None
+
+  if re.search('^@%s:.*'%conf.username, cmd.lower()) is not None:
+    # отправленное нами же сообщение - пропускаем:
+    log.debug("skip our message")
+    return True
 
   if user not in data["users"]:
     data["users"][user]={}
@@ -70,6 +71,9 @@ def process_command(user,room,cmd):
   session_data=data["users"][user][room]
 
   cur_state=data["users"][user][room]["state"]
+
+  log.debug("user=%s send command=%s"%(user,cmd))
+  log.debug("cur_state=%s"%cur_state)
 
   if cur_state == "listen_command":
     if re.search('^!*\?$', cmd.lower()) is not None or \
@@ -84,8 +88,9 @@ def process_command(user,room,cmd):
       return send_message(room,answer)
 
     # login
-    elif re.search('^!login .*', cmd.lower()) is not None:
+    elif re.search('^!login$', cmd.lower()) is not None:
       return login_command(user,room,cmd)
+
   elif cur_state == "wait_vk_id":
     if re.search('^!stop$', cmd.lower()) is not None or \
         re.search('^!отмена$', cmd.lower()) is not None or \
@@ -98,14 +103,17 @@ def process_command(user,room,cmd):
       if m:
         code = extract_unique_code(m.group(0))
         try:
-          user = verifycode(code)
-          send_message(room,'Вход выполнен в аккаунт {} {}!'.format(user['first_name'], user['last_name']))
-          data[user][room]["vk_id"]=code
-          # сохраняем на диск:
-          save_data(data)
+          vk_user = verifycode(code)
         except:
           send_message(room, 'Неверная ссылка, попробуйте ещё раз!')
-    
+          log.warning("error auth url from user=%s"%user)
+          return False
+        send_message(room,'Вход выполнен в аккаунт {} {}!'.format(vk_user['first_name'], vk_user['last_name']))
+        data["users"][user][room]["vk_id"]=code
+        data["users"][user][room]["state"]="listen_command"
+        # сохраняем на диск:
+        save_data(data)
+  
   return True
 
 def extract_unique_code(text):
@@ -129,11 +137,12 @@ def info_extractor(info):
 def login_command(user,room,cmd):
   global lock
   global data
-  session_data=data[user][room]
-  if "vk_id" not in session_data or session_data["vk_id"]=None:
+  log.debug("login_command()")
+  session_data=data["users"][user][room]
+  if "vk_id" not in session_data or session_data["vk_id"]==None:
     send_message(room,'Нажмите по ссылке ниже. Откройте её и согласитесь. После скопируйте текст из адресной строки и отправьте эту ссылку мне сюда')
     send_message(room,link)
-    data[user][room]["state"]="wait_vk_id"
+    data["users"][user][room]["state"]="wait_vk_id"
   else:
     send_message(room,'Вход уже выполнен!\n/logout для выхода.')
 
