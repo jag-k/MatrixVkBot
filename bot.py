@@ -228,11 +228,13 @@ def get_new_vk_messages(user):
     data["users"][user]["vk"]["pts"] = new["new_pts"]
   count = msgs[0]
 
-  res = []
+  res = None
   if count == 0:
-      pass
+    pass
   else:
-      res = msgs[1:]
+    res={}
+    res["messages"] = msgs[1:]
+    res["profiles"] = new["profiles"]
   return res
 
 
@@ -711,7 +713,7 @@ def vk_receiver_thread(user):
   while True:
     res=get_new_vk_messages(user)
     if res != None:
-      for m in res:
+      for m in res["messages"]:
         if m["out"]==1:
           log.debug("receive our message - skip")
         else:
@@ -723,7 +725,13 @@ def vk_receiver_thread(user):
               if "chat_id" in m:
                 # групповой чат:
                 if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["chat_id"]:
-                  send_message(room,m["body"])
+                  # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
+                  # Ищем отправителя в профилях полученного сообщения:
+                  sender_name=None
+                  for profile in res["profiles"]:
+                    if profile["uid"]==m["uid"]:
+                      sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
+                  send_html(room,sender_name+m["body"])
                   send_status=True
               else:
                 # обычный чат:
