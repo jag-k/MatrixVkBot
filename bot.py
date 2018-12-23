@@ -720,9 +720,16 @@ def vk_receiver_thread(user):
           send_status=False
           for room in data["users"][user]["rooms"]:
             if "cur_dialog" in data["users"][user]["rooms"][room]:
-              if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
-                send_message(room,m["body"])
-                send_status=True
+              if "chat_id" in m:
+                # групповой чат:
+                if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["chat_id"]:
+                  send_message(room,m["body"])
+                  send_status=True
+              else:
+                # обычный чат:
+                if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
+                  send_message(room,m["body"])
+                  send_status=True
           if send_status==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
             # Нужно самим создать комнату и отправить туда сообщение.
