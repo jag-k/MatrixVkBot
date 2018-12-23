@@ -11,6 +11,7 @@ while /bin/true
 do
   $exec_file &> ${error_dump_file}
   if [ $? != 0 ] 
+  then
     cp "${error_dump_file}" "${error_dump_file}_error_save_`date +%Y.%m.%d-%T`"
   fi
   sleep 120
