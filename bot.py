@@ -24,6 +24,7 @@ import threading
 import requests
 import traceback
 import vk
+import ujson
 import wget
 from PIL import Image
 
@@ -42,6 +43,7 @@ vk_threads = {}
 vk_dialogs = {}
 
 VK_API_VERSION = '3.0'
+VK_POLLING_VERSION = '3.0'
 
 currentchat = {}
 
@@ -55,22 +57,28 @@ def process_command(user,room,cmd):
   global log
   global data
   answer=None
-  session_data=None
+  session_data_room=None
+  session_data_vk=None
+  session_data_user=None
 
-  if re.search('^@%s:.*'%conf.username, cmd.lower()) is not None:
+  if re.search('^@%s:.*'%conf.username, user.lower()) is not None:
     # отправленное нами же сообщение - пропускаем:
     log.debug("skip our message")
     return True
 
   if user not in data["users"]:
     data["users"][user]={}
-  if room not in data["users"][user]:
-    data["users"][user][room]={}
-    data["users"][user][room]["state"]="listen_command"
+    data["users"][user]["rooms"]={}
+    data["users"][user]["vk"]={}
+  if room not in data["users"][user]["rooms"]:
+    data["users"][user]["rooms"][room]={}
+    data["users"][user]["rooms"][room]["state"]="listen_command"
 
-  session_data=data["users"][user][room]
+  session_data_room=data["users"][user]["rooms"][room]
+  session_data_vk=data["users"][user]["vk"]
+  session_data_user=data["users"][user]
 
-  cur_state=data["users"][user][room]["state"]
+  cur_state=data["users"][user]["rooms"][room]["state"]
 
   log.debug("user=%s send command=%s"%(user,cmd))
   log.debug("cur_state=%s"%cur_state)
@@ -80,8 +88,8 @@ def process_command(user,room,cmd):
       re.search('^!стоп$', cmd.lower()) is not None or \
       re.search('^!отмена$', cmd.lower()) is not None or \
       re.search('^!cancel$', cmd.lower()) is not None:
-    data["users"][user][room]["state"]="listen_command"
-    send_message(room,'Отменил текущий режим (%s) и перешёл в начальный режим ожидания команд. Жду команд.'%session_data["state"])
+    data["users"][user]["rooms"][room]["state"]="listen_command"
+    send_message(room,'Отменил текущий режим (%s) и перешёл в начальный режим ожидания команд. Жду команд.'%session_data_room["state"])
     return True
   elif re.search('^!стат$', cmd.lower()) is not None or \
       re.search('^!состояние$', cmd.lower()) is not None or \
@@ -89,9 +97,9 @@ def process_command(user,room,cmd):
       re.search('^!chat$', cmd.lower()) is not None or \
       re.search('^!room$', cmd.lower()) is not None or \
       re.search('^!stat$', cmd.lower()) is not None:
-    send_message(room,"Текущее состояние: %s"%session_data["state"])
-    if session_data["state"]=="dialog":
-      send_message(room,'Текущая комната: "%s"'%session_data["cur_dialog"]["title"])
+    send_message(room,"Текущее состояние: %s"%session_data_room["state"])
+    if session_data_room["state"]=="dialog":
+      send_message(room,'Текущая комната: "%s"'%session_data_room["cur_dialog"]["title"])
     return True
 
   if cur_state == "listen_command":
@@ -131,8 +139,8 @@ def process_command(user,room,cmd):
         log.warning("error auth url from user=%s"%user)
         return False
       send_message(room,'Вход выполнен в аккаунт {} {}!'.format(vk_user['first_name'], vk_user['last_name']))
-      data["users"][user][room]["vk_id"]=code
-      data["users"][user][room]["state"]="listen_command"
+      data["users"][user]["vk"]["vk_id"]=code
+      data["users"][user]["rooms"][room]["state"]="listen_command"
       # сохраняем на диск:
       save_data(data)
 
@@ -142,23 +150,65 @@ def process_command(user,room,cmd):
     except:
       send_message(room,"пожалуйста, введите номер диалога или команды !stop, !отмена, !cancel")
       return True
-    if index not in session_data["dialogs_list"]:
+    if index not in session_data_room["dialogs_list"]:
       send_message(room,"Неверный номер диалога, введите верный номер диалога или команды !stop, !отмена, !cancel")
       return True
-    cur_dialog=session_data["dialogs_list"][index]
+    cur_dialog=session_data_room["dialogs_list"][index]
     send_message(room,"Переключаю Вас на диалог с: %s"%cur_dialog["title"])
-    data["users"][user][room]["cur_dialog"]=cur_dialog
-    data["users"][user][room]["state"]="dialog"
+    data["users"][user]["rooms"][room]["cur_dialog"]=cur_dialog
+    data["users"][user]["rooms"][room]["state"]="dialog"
     # сохраняем на диск:
     save_data(data)
 
   elif cur_state == "dialog":
-    dialog=session_data["cur_dialog"]
-    if vk_send_text(session_data["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
+    dialog=session_data_room["cur_dialog"]
+    if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
       log.error("error vk_send_text() for user %s"%user)
       send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
 
   return True
+
+def get_new_vk_messages(user):
+  global data
+  global lock
+  if "vk" not in data["users"][user]:
+    return False
+  if "vk_id" not in data["users"][user]["vk"]:
+    return False
+  session = get_session(data["users"][user]["vk"]["vk_id"])
+  # метки времени у пользователя ещё не выставлены:
+  if "ts" not in data["users"][user]["vk"] or "pts" not in data["users"][user]["vk"]:
+    # выставляем текущие метки:
+    with lock:
+      data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+  
+  log.debug("ts=%d, pts=%d"%(data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"]))
+
+  api = vk.API(session, v=VK_POLLING_VERSION)
+  try:
+    ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
+    new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+  except vk.api.VkAPIError:
+    timeout = 3
+    log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
+    time.sleep(timeout)
+    with lock:
+      data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+    ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
+    new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+
+  msgs = new['messages']
+  with lock:
+    data["users"][user]["vk"]["pts"] = new["new_pts"]
+  count = msgs[0]
+
+  res = []
+  if count == 0:
+      pass
+  else:
+      res = msgs[1:]
+  return res
+
 
 def extract_unique_code(text):
     # Extracts the unique_code from the sent /start command.
@@ -204,11 +254,12 @@ def dialogs_command(user,room,cmd):
   global lock
   global data
   log.debug("dialogs_command()")
-  session_data=data["users"][user][room]
-  if "vk_id" not in session_data or session_data["vk_id"]==None:
+  session_data_room=data["users"][user]["rooms"][room]
+  session_data_vk=data["users"][user]["vk"]
+  if "vk_id" not in session_data_vk or session_data_vk["vk_id"]==None:
     send_message(room,'Вы не вошли в ВК - используйте !login для входа')
     return True
-  vk_id=session_data["vk_id"]
+  vk_id=session_data_vk["vk_id"]
   dialogs=get_dialogs(vk_id)
   if dialogs == None:
     send_message(room,'Не смог получить спиоок бесед из ВК - попробуйте позже :-(')
@@ -227,8 +278,8 @@ def dialogs_command(user,room,cmd):
     message+="\n"
     index+=1
   send_message(room,message)
-  data["users"][user][room]["state"]="wait_dialog_index"
-  data["users"][user][room]["dialogs_list"]=dialogs_list
+  data["users"][user]["rooms"][room]["state"]="wait_dialog_index"
+  data["users"][user]["rooms"][room]["dialogs_list"]=dialogs_list
   return True
 
 def get_dialogs(vk_id):
@@ -286,19 +337,13 @@ def login_command(user,room,cmd):
   global lock
   global data
   log.debug("login_command()")
-  session_data=data["users"][user][room]
-  if "vk_id" not in session_data or session_data["vk_id"]==None:
+  session_data_vk=data["users"][user]["vk"]
+  if "vk_id" not in session_data_vk or session_data_vk["vk_id"]==None:
     send_message(room,'Нажмите по ссылке ниже. Откройте её и согласитесь. После скопируйте текст из адресной строки и отправьте эту ссылку мне сюда')
     send_message(room,link)
-    data["users"][user][room]["state"]="wait_vk_id"
+    data["users"][user]["rooms"][room]["state"]="wait_vk_id"
   else:
     send_message(room,'Вход уже выполнен!\n/logout для выхода.')
-
-def check_thread(uid):
-    for th in threading.enumerate():
-        if th.getName() == 'vk' + str(uid):
-            return False
-    return True
 
 def replace_shields(text):
     text = text.replace('&lt;', '<')
@@ -523,8 +568,25 @@ def main():
     log.info("enter main loop")
     while True:
       print("step %d"%x)
+      for user in data["users"]:
+        for room in data["users"][user]:
+          res=get_new_vk_messages(user)
+          for m in res:
+            print("m:")
+            print(m)
+            for room in data["users"][user]["rooms"]:
+              if "cur_dialog" in data["users"][user]["rooms"][room]:
+                print("cur_dialog:")
+                print(data["users"][user]["rooms"][room]["cur_dialog"])
+                if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
+                  send_message(room,m["body"])
+          print("res:")
+          print(res)
+          if res == False:
+            print("data:")
+            print(data)
       x+=1
-      time.sleep(10)
+      time.sleep(3)
     log.info("exit main loop")
 
 
