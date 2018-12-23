@@ -68,7 +68,9 @@ def process_command(user,room,cmd):
 
   if user not in data["users"]:
     data["users"][user]={}
+  if "rooms" not in data["users"][user]:
     data["users"][user]["rooms"]={}
+  if "vk" not in data["users"][user]:
     data["users"][user]["vk"]={}
   if room not in data["users"][user]["rooms"]:
     data["users"][user]["rooms"][room]={}
@@ -571,6 +573,8 @@ def on_event(event):
 def on_invite(room, event):
     global client
     global log
+    global lock
+    global data
 
     if conf.debug:
       print("invite:")
@@ -588,7 +592,21 @@ def on_invite(room, event):
           room = client.join_room(room)
           room.send_text("Спасибо за приглашение! Недеюсь быть Вам полезным. :-)")
           room.send_text("Для справки по доступным командам - неберите: '!help' (или '!?', или '!h')")
-          log.info("New user: '%s'"%event_item["sender"])
+          user=event_item["sender"]
+          log.info("New user: '%s'"%user)
+          # Прописываем системную группу для пользователя (группа, в которую будут сыпаться системные сообщения от бота и где он будет слушать команды):
+          with lock:
+            if "users" not in data:
+              data["users"]={}
+            if user not in data["users"]:
+              data["users"][user]={}
+            if "matrix_bot_data" not in data["users"][user]:
+              data["users"][user]["matrix_bot_data"]={}
+            if "control_room" not in data["users"][user]["matrix_bot_data"]:
+              data["users"][user]["matrix_bot_data"]["control_room"]=room.room_id
+            save_data(data)
+
+
 
 def exception_handler(e):
   global client
@@ -640,33 +658,44 @@ def main():
     client.add_invite_listener(on_invite)
     client.start_listener_thread(exception_handler=exception_handler)
     log.info("success init listeners")
-    if start_vk_polls() == True:
-      log.info("success start_vk_polls")
-    else:
-      log.error("error start_vk_polls")
 
     x=0
     log.info("enter main loop")
     while True:
       print("step %d"%x)
       x+=1
+      # Запускаем незапущенные потоки - при старте бота или же если подключился новый пользователь:
+      num=start_vk_polls()
+      log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
+      # FIXME
       time.sleep(10)
     log.info("exit main loop")
+
+def check_thread_exist(vk_id):
+    for th in threading.enumerate():
+        if th.getName() == 'vk' + str(vk_id):
+            return True
+    return False
 
 # запуск потоков получения сообщений:
 def start_vk_polls():
   global data
   global lock
   global log
+
+  started=0
   
   with lock:
     for user in data["users"]:
-      vk_data=data["users"][user]["vk"]
-      vk_id=data["users"][user]["vk"]["vk_id"]
-      t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
-      t.setDaemon(True)
-      t.start()
-  return True
+      if "vk" in data["users"][user] and "vk_id" in data["users"][user]["vk"]:
+        vk_data=data["users"][user]["vk"]
+        vk_id=data["users"][user]["vk"]["vk_id"]
+        if check_thread_exist(vk_id) == False:
+          t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
+          t.setDaemon(True)
+          t.start()
+          started+=1
+  return started
 
 def vk_receiver_thread(user):
   global data
@@ -677,22 +706,67 @@ def vk_receiver_thread(user):
   session = get_session(data["users"][user]["vk"]["vk_id"])
   with lock:
     data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+    bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
 
   while True:
     res=get_new_vk_messages(user)
     if res != None:
       for m in res:
-        print("m:")
-        print(m)
-        for room in data["users"][user]["rooms"]:
-          if "cur_dialog" in data["users"][user]["rooms"][room]:
-            if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
-              send_message(room,m["body"])
-      print("res:")
-      print(res)
-      if res == False:
-        print("data:")
-        print(data)
+        if m["out"]==1:
+          log.debug("receive our message - skip")
+        else:
+          print("m:")
+          print(m)
+          send_status=False
+          for room in data["users"][user]["rooms"]:
+            if "cur_dialog" in data["users"][user]["rooms"][room]:
+              if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
+                send_message(room,m["body"])
+                send_status=True
+          if send_status==False:
+            # Не нашли созданной комнаты, чтобы отправить туда сообщение.
+            # Нужно самим создать комнату и отправить туда сообщение.
+
+            # Нужно найти имя диалога:
+            dialogs=get_dialogs(data["users"][user]["vk"]["vk_id"])
+            if dialogs == None:
+              log.error("get_dialogs for user '%s'"%user)
+              send_message(bot_control_room,'Не смог получить спиоок бесед из ВК - поэтому не смог создать новую комнату в связи с пришедшикомнату попробуйте позже :-(')
+
+            cur_dialog=None
+            for item in dialogs:
+              print("item:")
+              print(item)
+              if "chat_id" in m:
+                # значит ищем среди групп:
+                if item["group"] == True and item["id"] == m["chat_id"]:
+                  room_name=item["title"]
+                  cur_dialog=item
+              else:
+                # значит ищем среди чатов:
+                if item["group"] == False and item["id"] == m["uid"]:
+                  cur_dialog=item
+            if cur_dialog == None:
+              log.error("can not found VK sender in dialogs - logic error - skip")
+              send_message(bot_control_room,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["uid"])
+              send_message(bot_control_room,"Сообщение было: '%s'"%m["body"])
+              continue
+            
+            room_id=create_room(user,cur_dialog["title"] + " (VK)")
+            if room_id==None:
+              log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
+              send_message(bot_control_room,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+              continue
+            send_message(bot_control_room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+            with lock:
+              data["users"][user]["rooms"][room_id]={}
+              data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
+              data["users"][user]["rooms"][room_id]["state"]="dialog"
+              # сохраняем на диск:
+              save_data(data)
+            # отправляем текст во вновь созданную комнату:
+            send_message(room_id,m["body"])
+
       # FIXME 
       time.sleep(5)
 
