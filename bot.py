@@ -83,6 +83,16 @@ def process_command(user,room,cmd):
   log.debug("user=%s send command=%s"%(user,cmd))
   log.debug("cur_state=%s"%cur_state)
 
+  # комната в режиме диалога - это созданная ботом комната. Она не принимает иных команд. Все команды принимает только комната с ботом
+  if cur_state == "dialog":
+    dialog=session_data_room["cur_dialog"]
+    if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
+      log.error("error vk_send_text() for user %s"%user)
+      send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
+      return False
+    return True
+
+  # Комната управления:
   # в любом состоянии отмена - всё отменяет:
   if re.search('^!stop$', cmd.lower()) is not None or \
       re.search('^!стоп$', cmd.lower()) is not None or \
@@ -154,27 +164,43 @@ def process_command(user,room,cmd):
       send_message(room,"Неверный номер диалога, введите верный номер диалога или команды !stop, !отмена, !cancel")
       return True
     cur_dialog=session_data_room["dialogs_list"][index]
-    send_message(room,"Переключаю Вас на диалог с: %s"%cur_dialog["title"])
-    data["users"][user]["rooms"][room]["cur_dialog"]=cur_dialog
-    data["users"][user]["rooms"][room]["state"]="dialog"
+    found_room=find_bridge_room(user,cur_dialog["id"])
+    if found_room != None:
+      # Такая комната уже существует!
+      log.info("room already exist for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
+      send_message(room,"У Вас уже есть комната (%s), связанная с этим пользователме - не создаю повторную. Позже будет добавлен функционал по чистке такх комнат."%found_room)
+      send_message(room,"Перешёл в режим команд")
+      data["users"][user]["rooms"][room]["state"]="listen_command"
+      return False
+    room_id=create_room(user,cur_dialog["title"] + " (VK)")
+    if room_id==None:
+      log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
+      send_message(room,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+      return False
+    send_message(room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+    data["users"][user]["rooms"][room_id]={}
+    data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
+    data["users"][user]["rooms"][room_id]["state"]="dialog"
     # сохраняем на диск:
     save_data(data)
 
-  elif cur_state == "dialog":
-    dialog=session_data_room["cur_dialog"]
-    if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
-      log.error("error vk_send_text() for user %s"%user)
-      send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
-
   return True
+
+def find_bridge_room(user,vk_room_id):
+  for room in data["users"][user]["rooms"]:
+    if data["users"][user]["rooms"][room]["state"]=="dialog" and \
+       data["users"][user]["rooms"][room]["cur_dialog"]["id"]==vk_room_id:
+      log.info("found bridge for user '%s' with vk_id '%d'"%(user,vk_room_id))
+      return room;
+  return None
 
 def get_new_vk_messages(user):
   global data
   global lock
   if "vk" not in data["users"][user]:
-    return False
+    return None
   if "vk_id" not in data["users"][user]["vk"]:
-    return False
+    return None
   session = get_session(data["users"][user]["vk"]["vk_id"])
   # метки времени у пользователя ещё не выставлены:
   if "ts" not in data["users"][user]["vk"] or "pts" not in data["users"][user]["vk"]:
@@ -415,6 +441,59 @@ def load_data():
     save_data(data)
   return data
 
+def create_room(matrix_uid, room_name):
+  global log
+  global client
+
+  # сначала спрашиваем у сервера, есть ли такой пользователь (чтобы не создавать просто так комнату):
+  try:
+    response = client.api.get_display_name(matrix_uid)
+  except MatrixRequestError as e:
+    log.error("Couldn't get user display name - may be no such user on server? username = '%s'"%matrix_uid)
+    log.error("skip create room for user '%s' - need admin!"%matrix_uid)
+    return None
+  log.debug("Success get display name '%s' for user '%s' - user exist. Try create room for this is user"%(response,matrix_uid))
+
+  try:
+    room=client.create_room(is_public=False, invitees=None)
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("Room ID/Alias in the wrong format")
+      return None
+    else:
+      log.error("Couldn't create room.")
+      return None
+  log.debug("New room created. room_id='%s'"%room.room_id)
+
+  # приглашаем пользователя в комнату:
+  try:
+    response = client.api.invite_user(room.room_id,matrix_uid)
+  except MatrixRequestError as e:
+    print(e)
+    log.error("Can not invite user '%s' to room '%s'"%(matrix_uid,room.room_id))
+    try:
+      # Нужно выйти из комнаты:
+      log.info("Leave from room: '%s'"%(room.room_id))
+      response = client.api.leave_room(room.room_id)
+    except:
+      log.error("error leave room: '%s'"%(room.room_id))
+      return None
+    try:
+      # И забыть её:
+      log.info("Forgot room: '%s'"%(room.room_id))
+      response = client.api.forget_room(room.room_id)
+    except:
+      log.error("error leave room: '%s'"%(room.room_id))
+      return None
+    return None
+  log.debug("success invite user '%s' to room '%s'"%(matrix_uid,room.room_id))
+
+  try:
+    room.set_room_name(room_name)
+  except:
+    log.error("error set_room_name room_id='%s' to '%s'"%(room.room_id, room_name))
+  return room.room_id;
 
 def send_html(room_id,html):
   global client
@@ -571,20 +650,21 @@ def main():
       for user in data["users"]:
         for room in data["users"][user]:
           res=get_new_vk_messages(user)
-          for m in res:
-            print("m:")
-            print(m)
-            for room in data["users"][user]["rooms"]:
-              if "cur_dialog" in data["users"][user]["rooms"][room]:
-                print("cur_dialog:")
-                print(data["users"][user]["rooms"][room]["cur_dialog"])
-                if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
-                  send_message(room,m["body"])
-          print("res:")
-          print(res)
-          if res == False:
-            print("data:")
-            print(data)
+          if res != None:
+            for m in res:
+              print("m:")
+              print(m)
+              for room in data["users"][user]["rooms"]:
+                if "cur_dialog" in data["users"][user]["rooms"][room]:
+                  print("cur_dialog:")
+                  print(data["users"][user]["rooms"][room]["cur_dialog"])
+                  if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
+                    send_message(room,m["body"])
+            print("res:")
+            print(res)
+            if res == False:
+              print("data:")
+              print(data)
       x+=1
       time.sleep(3)
     log.info("exit main loop")
