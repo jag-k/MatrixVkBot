@@ -202,11 +202,6 @@ def get_new_vk_messages(user):
   if "vk_id" not in data["users"][user]["vk"]:
     return None
   session = get_session(data["users"][user]["vk"]["vk_id"])
-  # метки времени у пользователя ещё не выставлены:
-  if "ts" not in data["users"][user]["vk"] or "pts" not in data["users"][user]["vk"]:
-    # выставляем текущие метки:
-    with lock:
-      data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
   
   log.debug("ts=%d, pts=%d"%(data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"]))
 
@@ -222,6 +217,9 @@ def get_new_vk_messages(user):
       data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+
+  print("new:")
+  print(new)
 
   msgs = new['messages']
   with lock:
@@ -642,33 +640,63 @@ def main():
     client.add_invite_listener(on_invite)
     client.start_listener_thread(exception_handler=exception_handler)
     log.info("success init listeners")
+    if start_vk_polls() == True:
+      log.info("success start_vk_polls")
+    else:
+      log.error("error start_vk_polls")
 
     x=0
     log.info("enter main loop")
     while True:
       print("step %d"%x)
-      for user in data["users"]:
-        for room in data["users"][user]:
-          res=get_new_vk_messages(user)
-          if res != None:
-            for m in res:
-              print("m:")
-              print(m)
-              for room in data["users"][user]["rooms"]:
-                if "cur_dialog" in data["users"][user]["rooms"][room]:
-                  print("cur_dialog:")
-                  print(data["users"][user]["rooms"][room]["cur_dialog"])
-                  if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
-                    send_message(room,m["body"])
-            print("res:")
-            print(res)
-            if res == False:
-              print("data:")
-              print(data)
       x+=1
-      time.sleep(3)
+      time.sleep(10)
     log.info("exit main loop")
 
+# запуск потоков получения сообщений:
+def start_vk_polls():
+  global data
+  global lock
+  global log
+  
+  with lock:
+    for user in data["users"]:
+      vk_data=data["users"][user]["vk"]
+      vk_id=data["users"][user]["vk"]["vk_id"]
+      t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
+      t.setDaemon(True)
+      t.start()
+  return True
+
+def vk_receiver_thread(user):
+  global data
+  global lock
+  global log
+  log.info("start new vk_receiver_thread() for user='%s'"%user)
+  # Обновляем временные метки:
+  session = get_session(data["users"][user]["vk"]["vk_id"])
+  with lock:
+    data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+
+  while True:
+    res=get_new_vk_messages(user)
+    if res != None:
+      for m in res:
+        print("m:")
+        print(m)
+        for room in data["users"][user]["rooms"]:
+          if "cur_dialog" in data["users"][user]["rooms"][room]:
+            if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
+              send_message(room,m["body"])
+      print("res:")
+      print(res)
+      if res == False:
+        print("data:")
+        print(data)
+      # FIXME 
+      time.sleep(5)
+
+  return True
 
 if __name__ == '__main__':
   log= logging.getLogger("MatrixVkBot")
