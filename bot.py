@@ -205,7 +205,7 @@ def get_new_vk_messages(user):
     return None
   session = get_session(data["users"][user]["vk"]["vk_id"])
   
-  log.debug("ts=%d, pts=%d"%(data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"]))
+  #log.debug("ts=%d, pts=%d"%(data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"]))
 
   api = vk.API(session, v=VK_POLLING_VERSION)
   try:
@@ -220,8 +220,8 @@ def get_new_vk_messages(user):
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
-  print("new:")
-  print(new)
+  #print("new:")
+  #print(new)
 
   msgs = new['messages']
   with lock:
@@ -668,9 +668,9 @@ def main():
       x+=1
       # Запускаем незапущенные потоки - при старте бота или же если подключился новый пользователь:
       num=start_vk_polls()
-      log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
-      # FIXME
-      time.sleep(10)
+      if num > 0:
+        log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
+      time.sleep(5)
     log.info("exit main loop")
 
 def check_thread_exist(vk_id):
@@ -783,7 +783,7 @@ def vk_receiver_thread(user):
             send_message(room_id,m["body"])
 
       # FIXME 
-      time.sleep(5)
+      time.sleep(2)
 
   return True
 
