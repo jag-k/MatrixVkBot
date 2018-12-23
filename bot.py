@@ -47,9 +47,6 @@ VK_POLLING_VERSION = '3.0'
 
 currentchat = {}
 
-link = 'https://oauth.vk.com/authorize?client_id={}&' \
-       'display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=friends,messages,offline,docs,photos,video' \
-       '&response_type=token&v={}'.format(conf.vk_app_id, VK_API_VERSION)
 
 
 def process_command(user,room,cmd):
@@ -156,6 +153,21 @@ def process_command(user,room,cmd):
       # сохраняем на диск:
       save_data(data)
 
+  elif cur_state == "wait_vk_app_id":
+    # парсинг ссылки
+    try:
+      vk_app_id = int(cmd)
+    except:
+      log.warning("error get VK app id from user=%s"%user)
+      send_message(room, 'Я ожидаю от вас "ID приложения" по ссылке https://vk.com/apps?act=manage в настройках созданного Вами приложения. Код должен быть обычным числом. Или же отмените ожидание с помощью команд: !стоп, !stop, !отмена, !cancel')
+      return False
+    data["users"][user]["vk"]["vk_app_id"]=vk_app_id
+    data["users"][user]["rooms"][room]["state"]="listen_command"
+    # сохраняем на диск:
+    save_data(data)
+    # заново запускаем обработчик логина с уже обновлёнными данными:
+    return login_command(user,room,cmd)
+
   elif cur_state == "wait_dialog_index":
     try:
       index=int(cmd)
@@ -178,6 +190,8 @@ def process_command(user,room,cmd):
     if room_id==None:
       log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
       send_message(room,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+      send_message(room,"Перешёл в режим команд")
+      data["users"][user]["rooms"][room]["state"]="listen_command"
       return False
     send_message(room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
     data["users"][user]["rooms"][room_id]={}
@@ -185,6 +199,8 @@ def process_command(user,room,cmd):
     data["users"][user]["rooms"][room_id]["state"]="dialog"
     # сохраняем на диск:
     save_data(data)
+    send_message(room,"Перешёл в режим команд")
+    data["users"][user]["rooms"][room]["state"]="listen_command"
 
   return True
 
@@ -366,12 +382,22 @@ def login_command(user,room,cmd):
   global data
   log.debug("login_command()")
   session_data_vk=data["users"][user]["vk"]
-  if "vk_id" not in session_data_vk or session_data_vk["vk_id"]==None:
+  if "vk_app_id" not in session_data_vk or session_data_vk["vk_app_id"]==None:
+    send_message(room,'Пройдите по ссылке https://vk.com/editapp?act=create и создаqnt своё Standalone-приложение, затем во вкладке Настройки переведите Состояние в "Приложение включено" и "видно всем", не забудьте сохранить изменения!')
+    send_message(room,'После этого скопируйте "ID приложения" в настройках у созданного перед этим приложения по ссылке https://vk.com/apps?act=manage  и пришлите мне сюда в чат. Я жду :-)')
+    data["users"][user]["rooms"][room]["state"]="wait_vk_app_id"
+  elif "vk_id" not in session_data_vk or session_data_vk["vk_id"]==None:
     send_message(room,'Нажмите по ссылке ниже. Откройте её и согласитесь. После скопируйте текст из адресной строки и отправьте эту ссылку мне сюда')
+    link = 'https://oauth.vk.com/authorize?client_id={}&' \
+           'display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=friends,messages,offline,docs,photos,video' \
+           '&response_type=token&v={}'.format(session_data_vk["vk_app_id"], VK_API_VERSION)
     send_message(room,link)
     data["users"][user]["rooms"][room]["state"]="wait_vk_id"
   else:
     send_message(room,'Вход уже выполнен!\n/logout для выхода.')
+
+
+
 
 def replace_shields(text):
     text = text.replace('&lt;', '<')
@@ -385,19 +411,6 @@ def replace_shields(text):
     text = text.replace('&trade;', '™')
     text = text.replace('&plusmn;', '±')
     return text
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def save_data(data):
   global log
