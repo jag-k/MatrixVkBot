@@ -740,7 +740,7 @@ def vk_receiver_thread(user):
                 if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["chat_id"]:
                   # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
                   # Ищем отправителя в профилях полученного сообщения:
-                  sender_name=None
+                  sender_name=""
                   for profile in res["profiles"]:
                     if profile["uid"]==m["uid"]:
                       sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
@@ -793,7 +793,17 @@ def vk_receiver_thread(user):
               # сохраняем на диск:
               save_data(data)
             # отправляем текст во вновь созданную комнату:
-            send_message(room_id,m["body"])
+            if "chat_id" in m:
+              # Групповой чат - добавляем имя отправителя:
+              # Ищем отправителя в профилях полученного сообщения:
+              sender_name=""
+              for profile in res["profiles"]:
+                if profile["uid"]==m["uid"]:
+                  sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
+              send_html(room,sender_name+m["body"])
+            else:
+              # Обычный чат:
+              send_message(room_id,m["body"])
 
       # FIXME 
       time.sleep(2)
