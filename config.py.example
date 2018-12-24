@@ -4,6 +4,8 @@
 server="https://matrix.org"
 username="vk2matrix"
 password="XXXXXX"
+# matrix device id for client - set any string like 'k4nctrsE'
+device_id = "XXXXXXX" 
 
 data_file="data.json"
 

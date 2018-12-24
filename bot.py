@@ -650,7 +650,7 @@ def main():
 
     try:
         log.info("try login matrix-client")
-        client.login_with_password(username=conf.username, password=conf.password)
+        token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
         log.info("success login matrix-client")
     except MatrixRequestError as e:
         print(e)
