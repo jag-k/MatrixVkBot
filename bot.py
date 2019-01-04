@@ -236,8 +236,8 @@ def get_new_vk_messages(user):
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
-  #print("new:")
-  #print(new)
+  print("new:")
+  print(new)
 
   msgs = new['messages']
   with lock:
@@ -712,6 +712,119 @@ def start_vk_polls():
           started+=1
   return started
 
+def send_attachments(room,sender_name,attachments):
+  for attachment in attachments:
+    # Отправляем фото:
+    if attachment["type"]=="photo":
+      src=attachment["photo"]['src_small']
+      if "src" in attachment["photo"]:
+        src=attachment["photo"]["src"]
+      if "src_big" in attachment["photo"]:
+        src=attachment["photo"]["src_big"]
+      if "src_xbig" in attachment["photo"]:
+        src=attachment["photo"]["src_xbig"]
+      if "src_xxbig" in attachment["photo"]:
+        src=attachment["photo"]["src_xxbig"]
+      width=attachment["photo"]["width"]
+      height=attachment["photo"]["height"]
+      
+      image_data=get_data_from_url(src)
+      if image_data==None:
+        log.error("get image from url: %s"%src)
+        return False
+
+      # FIXME добавить определение типа:
+      mimetype="image/jpeg"
+        
+      mxc_url=upload_file(image_data,mimetype)
+      if mxc_url == None:
+        log.error("uload file to matrix server")
+        return False
+      log.debug("send file 1")
+      if sender_name!=None:
+        file_name=sender_name+' прислал изображение'
+      else:
+        file_name=None
+      if send_file(room,mxc_url,file_name) == False:
+        log.error("send file to room")
+        return False
+  return True
+
+def get_data_from_url(url):
+  global log
+  try:
+    response = requests.get(url, stream=True)
+    data = response.content      # a `bytes` object
+  except:
+    log.error("fetch data from url: %s"%url)
+    return None
+  return data
+
+
+def send_file(room_id,url,name):
+  global log
+  global client
+  ret=None
+  room=None
+  try:
+    room = client.join_room(room_id)
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("Room ID/Alias in the wrong format")
+      return False
+    else:
+      log.error("Couldn't find room.")
+      return False
+  try:
+    log.debug("send file 2")
+    ret=room.send_file(url,name)
+    log.debug("send file 3")
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("ERROR send file with mxurl=%s"%url)
+      return False
+    else:
+      log.error("Couldn't send file (unknown error) with mxurl=%s"%url)
+      return False
+  return True
+
+def upload_file(content,content_type,filename=None):
+  global log
+  global client
+  log.debug("upload file 1")
+  ret=None
+  try:
+    log.debug("upload file 2")
+    ret=client.upload(content,content_type)
+    log.debug("upload file 3")
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("ERROR upload file")
+      return None
+    else:
+      log.error("Couldn't upload file (unknown error)")
+      return None
+  return ret
+
+    
+#send_message(client, room,u"Файл готов, загружаю...")
+  mxc_url=upload_file(log,client,data,content_type)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    mba.send_message(log,client, room,u"Внутренняя ошибка сервера (не смог загрузить файл отчёта на сервер MATRIX) - попробуйте позже или обратитесь к администратору")
+    return False
+  log.debug("send file 1")
+  if send_file(log,client,room,mxc_url,file_name) == False:
+    log.error("send file to room")
+    mba.send_message(log,client, room,u"Внутренняя ошибка сервера (не смог отправить файл в комнату пользователю) - попробуйте позже или обратитесь к администратору")
+    return False
+  return True
+#return send_html(client,room,html)
+
+
 def vk_receiver_thread(user):
   global data
   global lock
@@ -746,11 +859,20 @@ def vk_receiver_thread(user):
                       sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
                   send_html(room,sender_name+m["body"])
                   send_status=True
+                  # отправка вложений:
+                  if "attachments" in m:
+                    if send_attachments(room,sender_name,m["attachments"])==False:
+                      send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
+                      send_message(bot_control_room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
               else:
                 # обычный чат:
                 if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
                   send_message(room,m["body"])
                   send_status=True
+                  # отправка вложений:
+                  if "attachments" in m:
+                    if send_attachments(room,None,m["attachments"])==False:
+                      send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
           if send_status==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
             # Нужно самим создать комнату и отправить туда сообщение.
