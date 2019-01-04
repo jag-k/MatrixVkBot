@@ -712,42 +712,57 @@ def start_vk_polls():
           started+=1
   return started
 
+def get_name_from_url(url):
+  return re.sub('.*/', '', url)
+
+def send_photo_to_matrix(room,sender_name,attachment):
+  src=attachment["photo"]['src_small']
+  if "src" in attachment["photo"]:
+    src=attachment["photo"]["src"]
+  if "src_big" in attachment["photo"]:
+    src=attachment["photo"]["src_big"]
+  if "src_xbig" in attachment["photo"]:
+    src=attachment["photo"]["src_xbig"]
+  if "src_xxbig" in attachment["photo"]:
+    src=attachment["photo"]["src_xxbig"]
+  width=attachment["photo"]["width"]
+  height=attachment["photo"]["height"]
+  
+  image_data=get_data_from_url(src)
+  if image_data==None:
+    log.error("get image from url: %s"%src)
+    return False
+
+  # FIXME добавить определение типа:
+  mimetype="image/jpeg"
+  size=len(image_data)
+    
+  mxc_url=upload_file(image_data,mimetype)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    return False
+  log.debug("send file 1")
+  if "title" in attachment["photo"]:
+    file_name=attachment["photo"]["title"]
+  else:
+    file_name=get_name_from_url(src)
+
+  if sender_name!=None:
+    file_name=sender_name+' прислал изображение: '+file_name
+
+  if send_image(room,mxc_url,file_name,height,width,mimetype,size) == False:
+    log.error("send file to room")
+    return False
+
+
 def send_attachments(room,sender_name,attachments):
   for attachment in attachments:
     # Отправляем фото:
     if attachment["type"]=="photo":
-      src=attachment["photo"]['src_small']
-      if "src" in attachment["photo"]:
-        src=attachment["photo"]["src"]
-      if "src_big" in attachment["photo"]:
-        src=attachment["photo"]["src_big"]
-      if "src_xbig" in attachment["photo"]:
-        src=attachment["photo"]["src_xbig"]
-      if "src_xxbig" in attachment["photo"]:
-        src=attachment["photo"]["src_xxbig"]
-      width=attachment["photo"]["width"]
-      height=attachment["photo"]["height"]
-      
-      image_data=get_data_from_url(src)
-      if image_data==None:
-        log.error("get image from url: %s"%src)
+      if send_photo_to_matrix(room,sender_name,attachment)==False:
+        log.error("send_photo_to_matrix()")
         return False
 
-      # FIXME добавить определение типа:
-      mimetype="image/jpeg"
-        
-      mxc_url=upload_file(image_data,mimetype)
-      if mxc_url == None:
-        log.error("uload file to matrix server")
-        return False
-      log.debug("send file 1")
-      if sender_name!=None:
-        file_name=sender_name+' прислал изображение'
-      else:
-        file_name=None
-      if send_file(room,mxc_url,file_name) == False:
-        log.error("send file to room")
-        return False
   return True
 
 def get_data_from_url(url):
@@ -760,6 +775,41 @@ def get_data_from_url(url):
     return None
   return data
 
+
+def send_image(room_id,url,name,height,width,mimetype,size):
+  global log
+  global client
+  ret=None
+  room=None
+  try:
+    room = client.join_room(room_id)
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("Room ID/Alias in the wrong format")
+      return False
+    else:
+      log.error("Couldn't find room.")
+      return False
+  imageinfo={}
+  imageinfo["mimetype"]=mimetype
+  imageinfo["size"]=size
+  imageinfo["h"]=height
+  imageinfo["w"]=width
+  try:
+    log.debug("send file 2")
+    #ret=room.send_image(url,name,imageinfo)
+    ret=room.send_image(url,name)
+    log.debug("send file 3")
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("ERROR send image with mxurl=%s"%url)
+      return False
+    else:
+      log.error("Couldn't send image (unknown error) with mxurl=%s"%url)
+      return False
+  return True
 
 def send_file(room_id,url,name):
   global log
