@@ -715,6 +715,46 @@ def start_vk_polls():
 def get_name_from_url(url):
   return re.sub('.*/', '', url)
 
+def send_file_to_matrix(room,sender_name,attachment):
+  src=attachment["doc"]['url']
+  size=attachment["doc"]['size']
+  
+  image_data=get_data_from_url(src)
+  if image_data==None:
+    log.error("get image from url: %s"%src)
+    return False
+
+  # определение типа:
+  ext=attachment["doc"]["ext"]
+  mimetype="text/plain"
+  if ext == "txt":
+    mimetype="text/plain"
+  elif ext == "doc": 
+    mimetype="application/msword"
+  elif ext == "xls": 
+    mimetype="application/vnd.ms-excel"
+  elif ext == "odt": 
+    mimetype="application/vnd.oasis.opendocument.text"
+  elif ext == "ods": 
+    mimetype="application/vnd.oasis.opendocument.spreadsheet"
+    
+  mxc_url=upload_file(image_data,mimetype)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    return False
+  log.debug("send file 1")
+  if "title" in attachment["doc"]:
+    file_name=attachment["doc"]["title"]
+  else:
+    file_name=get_name_from_url(src)
+
+  if sender_name!=None:
+    file_name=sender_name+' прислал файл: '+file_name
+
+  if matrix_send_file(room,mxc_url,file_name,mimetype,size) == False:
+    log.error("send file to room")
+    return False
+
 def send_photo_to_matrix(room,sender_name,attachment):
   src=attachment["photo"]['src_small']
   if "src" in attachment["photo"]:
@@ -750,10 +790,91 @@ def send_photo_to_matrix(room,sender_name,attachment):
   if sender_name!=None:
     file_name=sender_name+' прислал изображение: '+file_name
 
-  if send_image(room,mxc_url,file_name,height,width,mimetype,size) == False:
+  if matrix_send_image(room,mxc_url,file_name,height,width,mimetype,size) == False:
     log.error("send file to room")
     return False
 
+def send_video_to_matrix(room,sender_name,attachment):
+  src=attachment["video"]['image']
+  
+  image_data=get_data_from_url(src)
+  if image_data==None:
+    log.error("get image from url: %s"%src)
+    return False
+
+  # FIXME добавить определение типа:
+  mimetype="image/jpeg"
+  size=len(image_data)
+    
+  mxc_url=upload_file(image_data,mimetype)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    return False
+  log.debug("send file 1")
+  if "title" in attachment["video"]:
+    file_name=attachment["video"]["title"]+"(превью видео).jpg"
+  else:
+    file_name=get_name_from_url(src)
+
+  if sender_name!=None:
+    file_name=sender_name+' прислал изображение: '+file_name
+
+  if matrix_send_image(room,mxc_url,file_name,height=0,width=0,mimetype=mimetype,size=size) == False:
+    log.error("send file to room")
+    return False
+  video_url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
+  return send_message(room,"Ссылка на просмотр потокового видео: %s"%video_url)
+
+def send_audio_to_matrix(room,sender_name,attachment):
+  src=attachment["audio"]['url']
+  size=0
+  duration=attachment["audio"]["duration"]
+  file_name=attachment["audio"]["title"]+" ("+attachment["audio"]["title"]+").mp3"
+  # FIXME добавить определение типа:
+  mimetype="audio/mpeg"
+  
+  audio_data=get_data_from_url(src)
+  if audio_data==None:
+    log.error("get image from url: %s"%src)
+    return False
+    
+  mxc_url=upload_file(audio_data,mimetype)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    return False
+  log.debug("send file 1")
+
+  if sender_name!=None:
+    file_name=sender_name+' прислал песню: '+file_name
+
+  if matrix_send_audio(room,mxc_url,file_name,mimetype,size,duration) == False:
+    log.error("send file to room")
+    return False
+
+def send_voice_to_matrix(room,sender_name,attachment):
+  src=attachment["doc"]['url']
+  size=attachment["doc"]["size"]
+  file_name=attachment["doc"]["title"]
+  # FIXME добавить определение типа:
+  mimetype="audio/ogg"
+  
+  audio_data=get_data_from_url(src)
+  if audio_data==None:
+    log.error("get voice from url: %s"%src)
+    return False
+    
+  mxc_url=upload_file(audio_data,mimetype)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    return False
+  log.debug("send file 1")
+
+  if sender_name!=None:
+    file_name=sender_name+' прислал изображение: '+file_name
+
+  if matrix_send_audio(room,mxc_url,file_name,mimetype,size,duration=0) == False:
+    log.error("send file to room")
+    return False
 
 def send_attachments(room,sender_name,attachments):
   for attachment in attachments:
@@ -762,6 +883,28 @@ def send_attachments(room,sender_name,attachments):
       if send_photo_to_matrix(room,sender_name,attachment)==False:
         log.error("send_photo_to_matrix()")
         return False
+    # Отправляем фото:
+    elif attachment["type"]=="audio":
+      if send_audio_to_matrix(room,sender_name,attachment)==False:
+        log.error("send_audio_to_matrix()")
+    # Отправляем видео:
+    elif attachment["type"]=="video":
+      if send_video_to_matrix(room,sender_name,attachment)==False:
+        log.error("send_video_to_matrix()")
+    # документы:
+    elif attachment["type"]=="doc":
+      if "ext" in attachment["doc"] and attachment["doc"]["ext"]=="ogg":
+        # голосовое сообщение:
+        if send_voice_to_matrix(room,sender_name,attachment)==False:
+          log.error("send_voice_to_matrix()")
+          return False
+      else:
+        # иные прикреплённые документы:
+        if send_file_to_matrix(room,sender_name,attachment)==False:
+          log.error("send_file_to_matrix()")
+
+    else:
+      log.error("unknown attachment type - skip. attachment type=%s"%attachment["type"])
 
   return True
 
@@ -776,7 +919,41 @@ def get_data_from_url(url):
   return data
 
 
-def send_image(room_id,url,name,height,width,mimetype,size):
+def matrix_send_audio(room_id,url,name,mimetype="audio/mpeg",size=0,duration=0):
+  global log
+  global client
+  ret=None
+  room=None
+  try:
+    room = client.join_room(room_id)
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("Room ID/Alias in the wrong format")
+      return False
+    else:
+      log.error("Couldn't find room.")
+      return False
+  audioinfo={}
+  audioinfo["mimetype"]=mimetype
+  audioinfo["size"]=size
+  audioinfo["duration"]=duration
+  try:
+    log.debug("send file 2")
+    #ret=room.send_image(url,name,imageinfo)
+    ret=room.send_audio(url,name,audioinfo=audioinfo)
+    log.debug("send file 3")
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("ERROR send audio with mxurl=%s"%url)
+      return False
+    else:
+      log.error("Couldn't send audio (unknown error) with mxurl=%s"%url)
+      return False
+  return True
+
+def matrix_send_image(room_id,url,name,height,width,mimetype,size):
   global log
   global client
   ret=None
@@ -798,8 +975,8 @@ def send_image(room_id,url,name,height,width,mimetype,size):
   imageinfo["w"]=width
   try:
     log.debug("send file 2")
-    #ret=room.send_image(url,name,imageinfo)
-    ret=room.send_image(url,name)
+    ret=room.send_image(url,name,imageinfo=imageinfo)
+    #ret=room.send_image(url,name)
     log.debug("send file 3")
   except MatrixRequestError as e:
     print(e)
@@ -811,7 +988,7 @@ def send_image(room_id,url,name,height,width,mimetype,size):
       return False
   return True
 
-def send_file(room_id,url,name):
+def matrix_send_file(room_id,url,name,mimetype,size):
   global log
   global client
   ret=None
@@ -826,9 +1003,12 @@ def send_file(room_id,url,name):
     else:
       log.error("Couldn't find room.")
       return False
+  fileinfo={}
+  fileinfo["mimetype"]=mimetype
+  fileinfo["size"]=size
   try:
     log.debug("send file 2")
-    ret=room.send_file(url,name)
+    ret=room.send_file(url,name,fileinfo=fileinfo)
     log.debug("send file 3")
   except MatrixRequestError as e:
     print(e)
@@ -858,22 +1038,6 @@ def upload_file(content,content_type,filename=None):
       log.error("Couldn't upload file (unknown error)")
       return None
   return ret
-
-    
-#send_message(client, room,u"Файл готов, загружаю...")
-  mxc_url=upload_file(log,client,data,content_type)
-  if mxc_url == None:
-    log.error("uload file to matrix server")
-    mba.send_message(log,client, room,u"Внутренняя ошибка сервера (не смог загрузить файл отчёта на сервер MATRIX) - попробуйте позже или обратитесь к администратору")
-    return False
-  log.debug("send file 1")
-  if send_file(log,client,room,mxc_url,file_name) == False:
-    log.error("send file to room")
-    mba.send_message(log,client, room,u"Внутренняя ошибка сервера (не смог отправить файл в комнату пользователю) - попробуйте позже или обратитесь к администратору")
-    return False
-  return True
-#return send_html(client,room,html)
-
 
 def vk_receiver_thread(user):
   global data
@@ -907,22 +1071,28 @@ def vk_receiver_thread(user):
                   for profile in res["profiles"]:
                     if profile["uid"]==m["uid"]:
                       sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
-                  send_html(room,sender_name+m["body"])
-                  send_status=True
+                  if len(m["body"])>0:
+                    send_html(room,sender_name+m["body"])
+                    send_status=True
                   # отправка вложений:
                   if "attachments" in m:
                     if send_attachments(room,sender_name,m["attachments"])==False:
                       send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
                       send_message(bot_control_room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
+                    else:
+                      send_status=True
               else:
                 # обычный чат:
                 if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
-                  send_message(room,m["body"])
-                  send_status=True
+                  if len(m["body"])>0:
+                    send_message(room,m["body"])
+                    send_status=True
                   # отправка вложений:
                   if "attachments" in m:
                     if send_attachments(room,None,m["attachments"])==False:
                       send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
+                    else:
+                      send_status=True
           if send_status==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
             # Нужно самим создать комнату и отправить туда сообщение.
