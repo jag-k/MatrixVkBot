@@ -755,6 +755,46 @@ def send_file_to_matrix(room,sender_name,attachment):
     log.error("send file to room")
     return False
 
+def send_geo_to_matrix(room,sender_name,geo):
+  coordinates=geo["coordinates"]
+  lat=coordinates.split(' ')[0]
+  lon=coordinates.split(' ')[1]
+  place_name=geo["place"]["title"]
+  #src="http://staticmap.openstreetmap.de/staticmap.php?center=40.714728,-73.998672&zoom=14&size=865x512&maptype=mapnik"
+  geo_url="https://opentopomap.org/#marker=13/%(lat)s/%(lon)s"%{"lat":lat,"lon":lon}
+
+  if sender_name!=None:
+    text = sender_name + ' прислал местоположение (%s, %s):\n'%(lat,lon) + geo_url
+  else:
+    text = 'местоположение (%s, %s):\n'%(lat,lon) + geo_url
+  send_message(room,text)
+  return True
+  
+  # FIXME добавить превью карты:
+  image_data=get_data_from_url(src)
+  if image_data==None:
+    log.error("get image from url: %s"%src)
+    return False
+
+  # FIXME добавить определение типа:
+  mimetype="image/jpeg"
+  size=len(image_data)
+    
+  mxc_url=upload_file(image_data,mimetype)
+  if mxc_url == None:
+    log.error("uload file to matrix server")
+    return False
+  log.debug("send file 1")
+  if "title" in attachment["photo"]:
+    file_name=attachment["photo"]["title"]
+  else:
+    file_name=get_name_from_url(src)
+
+
+  if matrix_send_image(room,mxc_url,file_name,height,width,mimetype,size) == False:
+    log.error("send file to room")
+    return False
+
 def send_photo_to_matrix(room,sender_name,attachment):
   src=attachment["photo"]['src_small']
   if "src" in attachment["photo"]:
@@ -905,7 +945,6 @@ def send_attachments(room,sender_name,attachments):
 
     else:
       log.error("unknown attachment type - skip. attachment type=%s"%attachment["type"])
-
   return True
 
 def get_data_from_url(url):
@@ -1081,6 +1120,13 @@ def vk_receiver_thread(user):
                       send_message(bot_control_room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
                     else:
                       send_status=True
+                  # отправка местоположения:
+                  if "geo" in m:
+                    if send_geo_to_matrix(room,sender_name,m["geo"])==False:
+                      send_message(room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - см. логи')
+                      send_message(bot_control_room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
+                    else:
+                      send_status=True
               else:
                 # обычный чат:
                 if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
@@ -1093,6 +1139,14 @@ def vk_receiver_thread(user):
                       send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
                     else:
                       send_status=True
+                  # отправка местоположения:
+                  if "geo" in m:
+                    if send_geo_to_matrix(room,None,m["geo"])==False:
+                      send_message(room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - см. логи')
+                      send_message(bot_control_room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
+                    else:
+                      send_status=True
+              
           if send_status==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
             # Нужно самим создать комнату и отправить туда сообщение.
