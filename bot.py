@@ -236,8 +236,8 @@ def get_new_vk_messages(user):
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
-  print("new:")
-  print(new)
+  print("New data from VK:")
+  print(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
 
   msgs = new['messages']
   with lock:
@@ -1083,11 +1083,21 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
   global lock
   global log
   send_status=False
+  text=""
   if len(m["body"])>0:
-    if sender_name!=None:
-      text="<strong>%s</strong>: %s"%(sender_name,m["body"])
+    if 'fwd_messages' in m:
+      # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
+      for fwd in m['fwd_messages']:
+        fwd_uid=fwd['uid']
+        fwd_text=fwd['body']
+        # TODO получить ФИО авторов перенаправляемых сообщений
+        text+="> <%(fwd_user)s> %(fwd_text)\n\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
+      text+=m["body"]
     else:
-      text=m["body"]
+      if sender_name!=None:
+        text="<strong>%s</strong>: %s"%(sender_name,m["body"])
+      else:
+        text=m["body"]
     send_html(room,text)
     send_status=True
   # отправка вложений:
@@ -1125,8 +1135,9 @@ def vk_receiver_thread(user):
         if m["out"]==1:
           log.debug("receive our message - skip")
         else:
-          print("m:")
-          print(m)
+          # FIXME
+          print("Receive message from VK:")
+          print(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
           send_status=False
           for room in data["users"][user]["rooms"]:
             if "cur_dialog" in data["users"][user]["rooms"][room]:
