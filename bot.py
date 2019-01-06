@@ -1086,13 +1086,15 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
   text=""
   if len(m["body"])>0:
     if 'fwd_messages' in m:
+      if sender_name!=None:
+        text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
       # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
       for fwd in m['fwd_messages']:
         fwd_uid=fwd['uid']
         fwd_text=fwd['body']
         # TODO получить ФИО авторов перенаправляемых сообщений
         #text+="> <%(fwd_user)s> %(fwd_text)s\n\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
-        text+="<blockquote>\n<p><strong>%(fwd_user)s</strong></p><p>%(fwd_text)s</p>\n</blockquote>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
+        text+="<blockquote>\n<p><strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n</blockquote>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
       text+="<p>%s</p>\n" % m["body"]
     else:
       if sender_name!=None:
