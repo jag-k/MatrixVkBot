@@ -236,8 +236,8 @@ def get_new_vk_messages(user):
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
-  #print("New data from VK:")
-  #print(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
+  log.debug("New data from VK:")
+  log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
 
   msgs = new['messages']
   with lock:
@@ -1159,8 +1159,8 @@ def vk_receiver_thread(user):
           log.debug("receive our message - skip")
         else:
           # FIXME
-          print("Receive message from VK:")
-          print(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
+          log.debug("Receive message from VK:")
+          log.debug(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
           found_room=False
           for room in data["users"][user]["rooms"]:
             if "cur_dialog" in data["users"][user]["rooms"][room]:
