@@ -1130,6 +1130,12 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
       send_message(bot_control_room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s'%sender_name)
     else:
       send_status=True
+  if send_status==False:
+    send_message(bot_control_room,'Ошибка: не смог отправить сообщение в матрицу из ВК в комнату %s'%room)
+    log.warning("сообщение было:")
+    log.warning(m)
+  log.warning(m)
+
   return send_status
 
 
