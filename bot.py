@@ -236,8 +236,8 @@ def get_new_vk_messages(user):
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
-  log.debug("New data from VK:")
-  log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
+  #log.debug("New data from VK:")
+  #log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
 
   msgs = new['messages']
   with lock:
