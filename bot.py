@@ -948,7 +948,7 @@ def send_attachments(room,sender_name,attachments):
       text=""
       if sender_name!=None:
         text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
-      text+="<blockquote>\n<p>Запись на стене:</p>\n<p>%(wall_text)s</p>\n" % {"fwd_user":fwd_uid, "wall_text":attachment["wall"]["text"]}
+      text+="<blockquote>\n<p>Запись на стене:</p>\n<p>%(wall_text)s</p>\n" % {"wall_text":attachment["wall"]["text"]}
       # если на стене были вложения, то добавляем их как ссылки:
       if "attachments" in attachment["wall"]:
         for attachment in attachment["wall"]["attachments"]:
