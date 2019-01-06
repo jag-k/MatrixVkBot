@@ -943,7 +943,29 @@ def send_attachments(room,sender_name,attachments):
         # иные прикреплённые документы:
         if send_file_to_matrix(room,sender_name,attachment)==False:
           log.error("send_file_to_matrix()")
-
+    # сообщение со стены:
+    elif attachment["type"]=="wall":
+      text=""
+      if sender_name!=None:
+        text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
+      text+="<blockquote>\n<p>Запись на стене:</p>\n<p>%(wall_text)s</p>\n" % {"fwd_user":fwd_uid, "wall_text":attachment["wall"]["text"]}
+      # если на стене были вложения, то добавляем их как ссылки:
+      if "attachments" in attachment["wall"]:
+        for attachment in attachment["wall"]["attachments"]:
+          url=None
+          if attachment['type']=="photo":
+            url=attachment["photo"]["src"]
+          elif attachment['type']=="video":
+            url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
+          elif attachment['type']=="audio":
+            url=attachment["audio"]['url']
+          elif attachment['type']=="doc":
+            url=attachment["doc"]['url']
+          if url!=None:
+            text+="<p>вложение: %(url)s</p>\n" % {"url":url}
+      text+="</blockquote>\n"
+      if send_html(room,text)==False:
+        log.error("send_html()")
     else:
       log.error("unknown attachment type - skip. attachment type=%s"%attachment["type"])
   return True
