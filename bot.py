@@ -1234,8 +1234,8 @@ def vk_receiver_thread(user):
                 if profile["uid"]==m["uid"]:
                   sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
 
-            if proccess_vk_message(bot_control_room,room,sender_name,m) == False:
-              log.warning("proccess_vk_message(room=%s) return false"%(room))
+            if proccess_vk_message(bot_control_room,room_id,sender_name,m) == False:
+              log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
       # FIXME 
       time.sleep(2)
