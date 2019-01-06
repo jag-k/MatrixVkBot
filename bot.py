@@ -1092,7 +1092,7 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
       fwd_uid=fwd['uid']
       fwd_text=fwd['body']
       # TODO получить ФИО авторов перенаправляемых сообщений
-      text+="<blockquote>\n<p><strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n</blockquote>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
+      text+="<blockquote>\n<p>В ответ на реплику от <strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
       # если это ответ на вложения, то добавляем их как ссылки:
       if "attachments" in fwd:
         for attachment in fwd["attachments"]:
@@ -1106,7 +1106,8 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
           elif attachment['type']=="doc":
             url=attachment["doc"]['url']
           if url!=None:
-            text+="<blockquote>\n<p>вложение: %(url)s</p>\n</blockquote>\n" % {"url":url}
+            text+="<p>вложение: %(url)s</p>\n" % {"url":url}
+      text+="</blockquote>\n"
     text+="<p>%s</p>\n" % m["body"]
   else:
     if sender_name!=None:
