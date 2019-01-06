@@ -1154,7 +1154,7 @@ def vk_receiver_thread(user):
           # FIXME
           print("Receive message from VK:")
           print(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
-          send_status=False
+          found_room=False
           for room in data["users"][user]["rooms"]:
             if "cur_dialog" in data["users"][user]["rooms"][room]:
               sender_name=None
@@ -1165,6 +1165,8 @@ def vk_receiver_thread(user):
                 vk_room_id = m["chat_id"]
 
               if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == vk_room_id:
+                # нашли комнату:
+                found_room=True
                 # проверяем, групповой ли это чат:
                 if "chat_id" in m:
                   # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
@@ -1172,9 +1174,10 @@ def vk_receiver_thread(user):
                   for profile in res["profiles"]:
                     if profile["uid"]==m["uid"]:
                       sender_name="%s %s"%(profile["first_name"],profile["last_name"])
-                send_status=proccess_vk_message(bot_control_room,room,sender_name,m)
+                if proccess_vk_message(bot_control_room,room,sender_name,m) == False:
+                  log.warning("proccess_vk_message(room=%s) return false"%(room))
 
-          if send_status==False:
+          if found_room==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
             # Нужно самим создать комнату и отправить туда сообщение.
 
@@ -1224,7 +1227,8 @@ def vk_receiver_thread(user):
                 if profile["uid"]==m["uid"]:
                   sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
 
-            send_status=proccess_vk_message(bot_control_room,room,sender_name,m)
+            if proccess_vk_message(bot_control_room,room,sender_name,m) == False:
+              log.warning("proccess_vk_message(room=%s) return false"%(room))
 
       # FIXME 
       time.sleep(2)
