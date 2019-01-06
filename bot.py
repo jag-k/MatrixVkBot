@@ -119,7 +119,8 @@ def process_command(user,room,cmd):
       re.search('^!*help', cmd.lower()) is not None:
       answer="""!login - авторизоваться в ВК
 !logout - выйти из ВК
-!search - поиск диалогов в ВК
+!search - поиск диалогов в ВК (пока не реализовано)
+!dialogs - список всех ваших диалогов в ВК. В ответном сообщении Вам потребуется ввести номер диалога, чтобы начать общение в этом диалоге через матрицу.
       """ 
       return send_message(room,answer)
 
