@@ -1116,8 +1116,9 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
     else:
       text=m["body"]
 
-  if send_html(room,text) == True:
-    send_status=True
+  if len(text)>0:
+    if send_html(room,text) == True:
+      send_status=True
   # отправка вложений:
   if "attachments" in m:
     if send_attachments(room,sender_name,m["attachments"])==False:
