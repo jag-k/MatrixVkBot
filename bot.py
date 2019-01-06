@@ -1078,6 +1078,35 @@ def upload_file(content,content_type,filename=None):
       return None
   return ret
 
+def proccess_vk_message(bot_control_room,room,sender_name,m):
+  global data
+  global lock
+  global log
+  send_status=False
+  if len(m["body"])>0:
+    if sender_name!=None:
+      text="<strong>%s</strong>: %s"%(sender_name,m["body"])
+    else:
+      text=m["body"]
+    send_html(room,text)
+    send_status=True
+  # отправка вложений:
+  if "attachments" in m:
+    if send_attachments(room,sender_name,m["attachments"])==False:
+      send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
+      send_message(bot_control_room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - вложения были от: %s'%sender_name)
+    else:
+      send_status=True
+  # отправка местоположения:
+  if "geo" in m:
+    if send_geo_to_matrix(room,sender_name,m["geo"])==False:
+      send_message(room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - см. логи')
+      send_message(bot_control_room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s'%sender_name)
+    else:
+      send_status=True
+  return send_status
+
+
 def vk_receiver_thread(user):
   global data
   global lock
@@ -1101,52 +1130,23 @@ def vk_receiver_thread(user):
           send_status=False
           for room in data["users"][user]["rooms"]:
             if "cur_dialog" in data["users"][user]["rooms"][room]:
+              sender_name=None
+              vk_room_id=m["uid"]
+              # проверяем, групповой ли это чат:
               if "chat_id" in m:
                 # групповой чат:
-                if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["chat_id"]:
+                vk_room_id = m["chat_id"]
+
+              if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == vk_room_id:
+                # проверяем, групповой ли это чат:
+                if "chat_id" in m:
                   # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
                   # Ищем отправителя в профилях полученного сообщения:
-                  sender_name=""
                   for profile in res["profiles"]:
                     if profile["uid"]==m["uid"]:
-                      sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
-                  if len(m["body"])>0:
-                    send_html(room,sender_name+m["body"])
-                    send_status=True
-                  # отправка вложений:
-                  if "attachments" in m:
-                    if send_attachments(room,sender_name,m["attachments"])==False:
-                      send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
-                      send_message(bot_control_room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
-                    else:
-                      send_status=True
-                  # отправка местоположения:
-                  if "geo" in m:
-                    if send_geo_to_matrix(room,sender_name,m["geo"])==False:
-                      send_message(room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - см. логи')
-                      send_message(bot_control_room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
-                    else:
-                      send_status=True
-              else:
-                # обычный чат:
-                if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == m["uid"]:
-                  if len(m["body"])>0:
-                    send_message(room,m["body"])
-                    send_status=True
-                  # отправка вложений:
-                  if "attachments" in m:
-                    if send_attachments(room,None,m["attachments"])==False:
-                      send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
-                    else:
-                      send_status=True
-                  # отправка местоположения:
-                  if "geo" in m:
-                    if send_geo_to_matrix(room,None,m["geo"])==False:
-                      send_message(room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - см. логи')
-                      send_message(bot_control_room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s %s'%(profile["first_name"],profile["last_name"]))
-                    else:
-                      send_status=True
-              
+                      sender_name="%s %s"%(profile["first_name"],profile["last_name"])
+                send_status=proccess_vk_message(bot_control_room,room,sender_name,m)
+
           if send_status==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
             # Нужно самим создать комнату и отправить туда сообщение.
@@ -1189,17 +1189,15 @@ def vk_receiver_thread(user):
               # сохраняем на диск:
               save_data(data)
             # отправляем текст во вновь созданную комнату:
+            sender_name=None
             if "chat_id" in m:
               # Групповой чат - добавляем имя отправителя:
               # Ищем отправителя в профилях полученного сообщения:
-              sender_name=""
               for profile in res["profiles"]:
                 if profile["uid"]==m["uid"]:
                   sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
-              send_html(room,sender_name+m["body"])
-            else:
-              # Обычный чат:
-              send_message(room_id,m["body"])
+
+            send_status=proccess_vk_message(bot_control_room,room,sender_name,m)
 
       # FIXME 
       time.sleep(2)
