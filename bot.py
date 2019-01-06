@@ -1084,37 +1084,37 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
   global log
   send_status=False
   text=""
-  if len(m["body"])>0:
-    if 'fwd_messages' in m:
-      if sender_name!=None:
-        text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
-      # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
-      for fwd in m['fwd_messages']:
-        fwd_uid=fwd['uid']
-        fwd_text=fwd['body']
-        # TODO получить ФИО авторов перенаправляемых сообщений
-        text+="<blockquote>\n<p><strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n</blockquote>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
-        # если это ответ на вложения, то добавляем их как ссылки:
-        if "attachments" in fwd:
-          for attachment in fwd["attachments"]:
-            url=None
-            if attachment['type']=="photo":
-              url=attachment["photo"]["src"]
-            elif attachment['type']=="video":
-              url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
-            elif attachment['type']=="audio":
-              url=attachment["audio"]['url']
-            elif attachment['type']=="doc":
-              url=attachment["doc"]['url']
-            if url!=None:
-              text+="<blockquote>\n<p>вложение: %(url)s</p>\n</blockquote>\n" % {"url":url}
-      text+="<p>%s</p>\n" % m["body"]
+  if 'fwd_messages' in m:
+    if sender_name!=None:
+      text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
+    # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
+    for fwd in m['fwd_messages']:
+      fwd_uid=fwd['uid']
+      fwd_text=fwd['body']
+      # TODO получить ФИО авторов перенаправляемых сообщений
+      text+="<blockquote>\n<p><strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n</blockquote>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
+      # если это ответ на вложения, то добавляем их как ссылки:
+      if "attachments" in fwd:
+        for attachment in fwd["attachments"]:
+          url=None
+          if attachment['type']=="photo":
+            url=attachment["photo"]["src"]
+          elif attachment['type']=="video":
+            url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
+          elif attachment['type']=="audio":
+            url=attachment["audio"]['url']
+          elif attachment['type']=="doc":
+            url=attachment["doc"]['url']
+          if url!=None:
+            text+="<blockquote>\n<p>вложение: %(url)s</p>\n</blockquote>\n" % {"url":url}
+    text+="<p>%s</p>\n" % m["body"]
+  else:
+    if sender_name!=None:
+      text="<strong>%s</strong>: %s"%(sender_name,m["body"])
     else:
-      if sender_name!=None:
-        text="<strong>%s</strong>: %s"%(sender_name,m["body"])
-      else:
-        text=m["body"]
-    send_html(room,text)
+      text=m["body"]
+
+  if send_html(room,text) == True:
     send_status=True
   # отправка вложений:
   if "attachments" in m:
