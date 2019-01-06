@@ -1091,7 +1091,7 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
         fwd_uid=fwd['uid']
         fwd_text=fwd['body']
         # TODO получить ФИО авторов перенаправляемых сообщений
-        text+="> <%(fwd_user)s> %(fwd_text)\n\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
+        text+="> <%(fwd_user)s> %(fwd_text)s\n\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
       text+=m["body"]
     else:
       if sender_name!=None:
