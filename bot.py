@@ -1096,10 +1096,14 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
         if "attachments" in fwd:
           for attachment in fwd["attachments"]:
             url=None
-            if 'src' in attachment:
-              url=attachment["src"]
-            elif 'url' in attachment:
-              url=attachment["url"]
+            if attachment['type']=="photo":
+              url=attachment["photo"]["src"]
+            elif attachment['type']=="video":
+              url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
+            elif attachment['type']=="audio":
+              url=attachment["audio"]['url']
+            elif attachment['type']=="doc":
+              url=attachment["doc"]['url']
             if url!=None:
               text+="<blockquote>\n<p>вложение: %(url)s</p>\n</blockquote>\n" % {"url":url}
         # TODO получить ФИО авторов перенаправляемых сообщений
