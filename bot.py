@@ -1096,9 +1096,9 @@ def proccess_vk_message(bot_control_room,room,sender_name,m):
         if "attachments" in fwd:
           for attachment in fwd["attachments"]:
             url=None
-            if src in attachment:
+            if 'src' in attachment:
               url=attachment["src"]
-            elif url in attachment:
+            elif 'url' in attachment:
               url=attachment["url"]
             if url!=None:
               text+="<blockquote>\n<p>вложение: %(url)s</p>\n</blockquote>\n" % {"url":url}
