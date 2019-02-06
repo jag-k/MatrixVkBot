@@ -89,6 +89,8 @@ def process_command(user,room,cmd):
       log.error("error vk_send_text() for user %s"%user)
       send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
       return False
+    # Сохраняем последнюю введённую пользователем команду:
+    data["users"][user]["rooms"][room]["last_matrix_owner_message"]=cmd
     return True
 
   # Комната управления:
@@ -556,6 +558,27 @@ def send_message(room_id,message):
     room.send_text(message)
   except:
     log.error("Unknown error at send message '%s' to room '%s'"%(message,room_id))
+    return False
+  return True
+
+def send_notice(room_id,message):
+  global client
+  global log
+  room=None
+  try:
+    room = client.join_room(room_id)
+  except MatrixRequestError as e:
+    print(e)
+    if e.code == 400:
+      log.error("Room ID/Alias in the wrong format")
+      return False
+    else:
+      log.error("Couldn't find room.")
+      return False
+  try:
+    room.send_notice(message)
+  except:
+    log.error("Unknown error at send notice message '%s' to room '%s'"%(message,room_id))
     return False
   return True
 
@@ -1101,12 +1124,28 @@ def upload_file(content,content_type,filename=None):
       return None
   return ret
 
-def proccess_vk_message(bot_control_room,room,sender_name,m):
+def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   global data
   global lock
   global log
   send_status=False
+  owner_message=False
+  with lock:
+    last_matrix_owner_message=data["users"][user]["rooms"][room]["last_matrix_owner_message"]
   text=""
+  # Сообщение от нашей учётки в ВК:
+  if m["out"]==1:
+    log.debug("receive our message")
+    owner_message=True
+    if last_matrix_owner_message==m["body"]:
+      # текст такой же, какой мы отправляли последний раз в эту комнату из матрицы - не отображаем его:
+      log.debug("receive from vk our text, sended from matrix - skip it")
+      return True
+    else:
+      # Это наше сообщение, но отправлено из другого клиента. Шлём просто текст, но через m.notice, чтобы не дилинькал клиент:
+      text="Ваша реплика:\n" + m["body"]
+      return send_notice(room,text)
+
   if 'fwd_messages' in m:
     if sender_name!=None:
       text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
@@ -1171,6 +1210,7 @@ def vk_receiver_thread(user):
   log.info("start new vk_receiver_thread() for user='%s'"%user)
   # Обновляем временные метки:
   session = get_session(data["users"][user]["vk"]["vk_id"])
+  last_matrix_owner_message=None
   with lock:
     data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
@@ -1205,7 +1245,7 @@ def vk_receiver_thread(user):
                   for profile in res["profiles"]:
                     if profile["uid"]==m["uid"]:
                       sender_name="%s %s"%(profile["first_name"],profile["last_name"])
-                if proccess_vk_message(bot_control_room,room,sender_name,m) == False:
+                if proccess_vk_message(bot_control_room,room,user,sender_name,m) == False:
                   log.warning("proccess_vk_message(room=%s) return false"%(room))
 
           if found_room==False:
@@ -1258,7 +1298,7 @@ def vk_receiver_thread(user):
                 if profile["uid"]==m["uid"]:
                   sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
 
-            if proccess_vk_message(bot_control_room,room_id,sender_name,m) == False:
+            if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
               log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
       # FIXME 
