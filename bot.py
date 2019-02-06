@@ -1219,87 +1219,84 @@ def vk_receiver_thread(user):
     res=get_new_vk_messages(user)
     if res != None:
       for m in res["messages"]:
-        if m["out"]==1:
-          log.debug("receive our message - skip")
-        else:
-          # FIXME
-          log.debug("Receive message from VK:")
-          log.debug(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
-          found_room=False
-          for room in data["users"][user]["rooms"]:
-            if "cur_dialog" in data["users"][user]["rooms"][room]:
-              sender_name=None
-              vk_room_id=m["uid"]
+        # FIXME
+        log.debug("Receive message from VK:")
+        log.debug(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
+        found_room=False
+        for room in data["users"][user]["rooms"]:
+          if "cur_dialog" in data["users"][user]["rooms"][room]:
+            sender_name=None
+            vk_room_id=m["uid"]
+            # проверяем, групповой ли это чат:
+            if "chat_id" in m:
+              # групповой чат:
+              vk_room_id = m["chat_id"]
+
+            if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == vk_room_id:
+              # нашли комнату:
+              found_room=True
               # проверяем, групповой ли это чат:
               if "chat_id" in m:
-                # групповой чат:
-                vk_room_id = m["chat_id"]
+                # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
+                # Ищем отправителя в профилях полученного сообщения:
+                for profile in res["profiles"]:
+                  if profile["uid"]==m["uid"]:
+                    sender_name="%s %s"%(profile["first_name"],profile["last_name"])
+              if proccess_vk_message(bot_control_room,room,user,sender_name,m) == False:
+                log.warning("proccess_vk_message(room=%s) return false"%(room))
 
-              if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == vk_room_id:
-                # нашли комнату:
-                found_room=True
-                # проверяем, групповой ли это чат:
-                if "chat_id" in m:
-                  # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
-                  # Ищем отправителя в профилях полученного сообщения:
-                  for profile in res["profiles"]:
-                    if profile["uid"]==m["uid"]:
-                      sender_name="%s %s"%(profile["first_name"],profile["last_name"])
-                if proccess_vk_message(bot_control_room,room,user,sender_name,m) == False:
-                  log.warning("proccess_vk_message(room=%s) return false"%(room))
+        if found_room==False:
+          # Не нашли созданной комнаты, чтобы отправить туда сообщение.
+          # Нужно самим создать комнату и отправить туда сообщение.
 
-          if found_room==False:
-            # Не нашли созданной комнаты, чтобы отправить туда сообщение.
-            # Нужно самим создать комнату и отправить туда сообщение.
+          # Нужно найти имя диалога:
+          dialogs=get_dialogs(data["users"][user]["vk"]["vk_id"])
+          if dialogs == None:
+            log.error("get_dialogs for user '%s'"%user)
+            send_message(bot_control_room,'Не смог получить спиоок бесед из ВК - поэтому не смог создать новую комнату в связи с пришедшикомнату попробуйте позже :-(')
 
-            # Нужно найти имя диалога:
-            dialogs=get_dialogs(data["users"][user]["vk"]["vk_id"])
-            if dialogs == None:
-              log.error("get_dialogs for user '%s'"%user)
-              send_message(bot_control_room,'Не смог получить спиоок бесед из ВК - поэтому не смог создать новую комнату в связи с пришедшикомнату попробуйте позже :-(')
-
-            cur_dialog=None
-            for item in dialogs:
-              print("item:")
-              print(item)
-              if "chat_id" in m:
-                # значит ищем среди групп:
-                if item["group"] == True and item["id"] == m["chat_id"]:
-                  room_name=item["title"]
-                  cur_dialog=item
-              else:
-                # значит ищем среди чатов:
-                if item["group"] == False and item["id"] == m["uid"]:
-                  cur_dialog=item
-            if cur_dialog == None:
-              log.error("can not found VK sender in dialogs - logic error - skip")
-              send_message(bot_control_room,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["uid"])
-              send_message(bot_control_room,"Сообщение было: '%s'"%m["body"])
-              continue
-            
-            room_id=create_room(user,cur_dialog["title"] + " (VK)")
-            if room_id==None:
-              log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
-              send_message(bot_control_room,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
-              continue
-            send_message(bot_control_room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
-            with lock:
-              data["users"][user]["rooms"][room_id]={}
-              data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
-              data["users"][user]["rooms"][room_id]["state"]="dialog"
-              # сохраняем на диск:
-              save_data(data)
-            # отправляем текст во вновь созданную комнату:
-            sender_name=None
+          cur_dialog=None
+          for item in dialogs:
+            print("item:")
+            print(item)
             if "chat_id" in m:
-              # Групповой чат - добавляем имя отправителя:
-              # Ищем отправителя в профилях полученного сообщения:
-              for profile in res["profiles"]:
-                if profile["uid"]==m["uid"]:
-                  sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
+              # значит ищем среди групп:
+              if item["group"] == True and item["id"] == m["chat_id"]:
+                room_name=item["title"]
+                cur_dialog=item
+            else:
+              # значит ищем среди чатов:
+              if item["group"] == False and item["id"] == m["uid"]:
+                cur_dialog=item
+          if cur_dialog == None:
+            log.error("can not found VK sender in dialogs - logic error - skip")
+            send_message(bot_control_room,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["uid"])
+            send_message(bot_control_room,"Сообщение было: '%s'"%m["body"])
+            continue
+          
+          room_id=create_room(user,cur_dialog["title"] + " (VK)")
+          if room_id==None:
+            log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
+            send_message(bot_control_room,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+            continue
+          send_message(bot_control_room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+          with lock:
+            data["users"][user]["rooms"][room_id]={}
+            data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
+            data["users"][user]["rooms"][room_id]["state"]="dialog"
+            # сохраняем на диск:
+            save_data(data)
+          # отправляем текст во вновь созданную комнату:
+          sender_name=None
+          if "chat_id" in m:
+            # Групповой чат - добавляем имя отправителя:
+            # Ищем отправителя в профилях полученного сообщения:
+            for profile in res["profiles"]:
+              if profile["uid"]==m["uid"]:
+                sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
 
-            if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
-              log.warning("proccess_vk_message(room=%s) return false"%room_id)
+          if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
+            log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
       # FIXME 
       time.sleep(2)
