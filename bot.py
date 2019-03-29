@@ -49,7 +49,7 @@ currentchat = {}
 
 
 
-def process_command(user,room,cmd):
+def process_message(user,room,cmd,formated_message=None,format_type=None,reply_to_id=None,file_url=None,file_type=None):
   global client
   global log
   global data
@@ -57,6 +57,15 @@ def process_command(user,room,cmd):
   session_data_room=None
   session_data_vk=None
   session_data_user=None
+
+  if reply_to_id!=None and format_type=="org.matrix.custom.html" and formated_message!=None:
+    # разбираем, чтобы получить исходное сообщение и ответ
+    source_message=re.sub('<mx-reply><blockquote>.*<\/a><br>','', formated_message)
+    source_message=re.sub('</blockquote></mx-reply>.*','', source_message)
+    source_cmd=re.sub(r'.*</blockquote></mx-reply>','', formated_message.replace('\n',''))
+    log.debug("source=%s"%source_message)
+    log.debug("cmd=%s"%source_cmd)
+    cmd=source_cmd
 
   if re.search('^@%s:.*'%conf.username, user.lower()) is not None:
     # отправленное нами же сообщение - пропускаем:
@@ -593,11 +602,32 @@ def on_message(event):
             print("{0} joined".format(event['content']['displayname']))
     elif event['type'] == "m.room.message":
         if event['content']['msgtype'] == "m.text":
+            reply_to_id=None
+            if "m.relates_to" in  event['content']:
+              # это ответ на сообщение:
+              try:
+                reply_to_id=event['content']['m.relates_to']['m.in_reply_to']['event_id']
+              except:
+                log.error("bad formated event reply - skip")
+                mba.send_message(log,client,room.room_id,"Внутренняя ошибка разбора сообщения - обратитесь к разработчику")
+                return False
+            formatted_body=None
+            format_type=None
+            if "formatted_body" in event['content'] and "format" in event['content']:
+              formatted_body=event['content']['formatted_body']
+              format_type=event['content']['format']
             print("{0}: {1}".format(event['sender'], event['content']['body']))
             log.debug("try lock before process_command()")
             with lock:
               log.debug("success lock before process_command()")
-              if process_command(event['sender'], event['room_id'],event['content']['body']) == False:
+              if process_command(\
+                event['sender'],\
+                event['room_id'],\
+                event['content']['body'],\
+                formated_message=formatted_body,\
+                format_type=format_type,\
+                reply_to_id=reply_to_id\
+                ) == False:
                 log.error("error process command: '%s'"%event['content']['body'])
                 return False
     else:
