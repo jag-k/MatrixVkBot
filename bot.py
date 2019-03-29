@@ -1152,6 +1152,19 @@ def upload_file(content,content_type,filename=None):
       return None
   return ret
 
+def check_equal_messages(vk_body,matrix_body):
+  log.debug("check_equal_messages(%s,%s)"%(vk_body,matrix_body))
+  if vk_body==matrix_body:
+    return True
+  # заменяем разные символы:
+  src=re.replace('&gt;','>',vk_body)
+  src=re.replace('&lt;','<',src)
+  src=re.replace('<br>','\n',src)
+  log.debug("check_equal_messages() after replace: vk_body: %s"%vk_body)
+  if src==matrix_body:
+    return True
+  return False
+
 def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   global data
   global lock
@@ -1165,7 +1178,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   if m["out"]==1:
     log.debug("receive our message")
     owner_message=True
-    if last_matrix_owner_message==m["body"]:
+    if check_equal_messages(m["body"],last_matrix_owner_message):
       # текст такой же, какой мы отправляли последний раз в эту комнату из матрицы - не отображаем его:
       log.debug("receive from vk our text, sended from matrix - skip it")
       return True
