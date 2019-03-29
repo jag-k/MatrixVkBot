@@ -1160,7 +1160,7 @@ def check_equal_messages(vk_body,matrix_body):
   src=vk_body.replace('&gt;','>')\
         .replace('&lt;','<')\
         .replace('<br>','\n')
-  log.debug("check_equal_messages() after replace: vk_body: %s"%vk_body)
+  log.debug("check_equal_messages() after replace: vk_body: %s"%src)
   if src==matrix_body:
     return True
   return False
