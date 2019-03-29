@@ -47,9 +47,7 @@ VK_POLLING_VERSION = '3.0'
 
 currentchat = {}
 
-
-
-def process_message(user,room,cmd,formated_message=None,format_type=None,reply_to_id=None,file_url=None,file_type=None):
+def process_command(user,room,cmd,formated_message=None,format_type=None,reply_to_id=None,file_url=None,file_type=None):
   global client
   global log
   global data
