@@ -63,7 +63,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     source_cmd=re.sub(r'.*</blockquote></mx-reply>','', formated_message.replace('\n',''))
     log.debug("source=%s"%source_message)
     log.debug("cmd=%s"%source_cmd)
-    cmd=source_cmd
+    cmd="> %s\n%s"%(source_message,source_cmd)
 
   if re.search('^@%s:.*'%conf.username, user.lower()) is not None:
     # отправленное нами же сообщение - пропускаем:
