@@ -1,6 +1,8 @@
-pyTelegramBotAPI
 vk
-redis
-Pillow
+MatrixClient
+pickle
+json
+requests
+threading
 ujson
 wget
