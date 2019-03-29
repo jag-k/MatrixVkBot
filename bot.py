@@ -589,7 +589,7 @@ def on_message(event):
     global lock
     print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
     if event['type'] == "m.room.member":
-        if event['membership'] == "join":
+        if event['content']['membership'] == "join":
             print("{0} joined".format(event['content']['displayname']))
     elif event['type'] == "m.room.message":
         if event['content']['msgtype'] == "m.text":
