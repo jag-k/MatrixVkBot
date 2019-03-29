@@ -1157,9 +1157,9 @@ def check_equal_messages(vk_body,matrix_body):
   if vk_body==matrix_body:
     return True
   # заменяем разные символы:
-  src=re.replace('&gt;','>',vk_body)
-  src=re.replace('&lt;','<',src)
-  src=re.replace('<br>','\n',src)
+  src=vk_body.replace('&gt;','>')\
+        .replace('&lt;','<')\
+        .replace('<br>','\n')
   log.debug("check_equal_messages() after replace: vk_body: %s"%vk_body)
   if src==matrix_body:
     return True
