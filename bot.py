@@ -91,12 +91,33 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 
   # комната в режиме диалога - это созданная ботом комната. Она не принимает иных команд. Все команды принимает только комната с ботом
   if cur_state == "dialog":
+    bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
     dialog=session_data_room["cur_dialog"]
-    if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
-      log.error("error vk_send_text() for user %s"%user)
-      send_message(room,"/me не смог отправить сообщение в ВК - ошибка АПИ")
-      return False
+    if file_type!=None and file_url!=None:
+      # отправка файла:
+      if re.search("^image",file_type)==None:
+        log.warning("support only send images")
+        send_message(room,'Ошибка: пока поддерживается отправка только изображений')
+        return False
+      else:
+        # Отправка изображения из матрицы:
+        photo_data=get_file(file_url)
+        if photo_data==None:
+          log.error("error get file by mxurl=%s"%file_url)
+          send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          return False
+        if vk_send_photo(session_data_vk["vk_id"],dialog["id"],cmd,photo_data,dialog["group"]) == False:
+          log.error("error vk_send_photo() for user %s"%user)
+          send_message(room,"не смог отправить фото в ВК - ошибка АПИ")
+          return False
+    else:
+      # отправка текста:
+      if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
+        log.error("error vk_send_text() for user %s"%user)
+        send_message(room,"не смог отправить сообщение в ВК - ошибка АПИ")
+        return False
     # Сохраняем последнюю введённую пользователем команду:
+    log.debug("set last message as: %s"%cmd)
     data["users"][user]["rooms"][room]["last_matrix_owner_message"]=cmd
     return True
 
@@ -300,6 +321,37 @@ def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
       api.messages.send(user_id=chat_id, message=message, forward_messages=forward_messages)
   except:
     log.error("vk_send_text API or network error")
+    return False
+  return True
+
+def vk_send_photo(vk_id, chat_id, name, photo_data, group=False):
+  global log
+  try:
+    session = get_session(vk_id)
+    api = vk.API(session, v=VK_API_VERSION)
+    # получаем адрес загрузки:
+    response=api.photos.getMessagesUploadServer()
+    log.debug("api.photos.getMessagesUploadServer return:")
+    log.debug(response)
+    # 
+    url = response['upload_url']
+    files = {'photo': ('photo.png',photo_data,'multipart/form-data')}
+    r = requests.post(url, files=files)
+    log.debug("requests.post return: %s"%r.text)
+    ret=json.loads(r.text)
+    response=api.photos.saveMessagesPhoto(photo=ret['photo'],server=ret['server'],hash=ret['hash'])
+    log.debug("api.photos.saveMessagesPhoto return:")
+    log.debug(response)
+    if group:
+      ret=api.messages.send(chat_id=chat_id, message=name,attachment=(response[0]["id"]))
+      log.debug("api..messages.send return:")
+      log.debug(ret)
+    else:
+      ret=api.messages.send(user_id=chat_id, message=name,attachment=(response[0]["id"]))
+      log.debug("api..messages.send return:")
+      log.debug(ret)
+  except:
+    log.error("vk_send_photo API or network error")
     return False
   return True
 
@@ -542,6 +594,33 @@ def send_html(room_id,html):
     return False
   return True
 
+def get_file(mxurl):
+  global client
+  global log
+  log.debug("get_file 1")
+  ret=None
+  # получаем глобальную ссылку на файл:
+  try:
+    log.debug("get_file file 2")
+    full_url=client.api.get_download_url(mxurl)
+    log.debug("get_file file 3")
+  except MatrixRequestError as e:
+    log.error(e)
+    if e.code == 400:
+      log.error("ERROR download file")
+      return None
+    else:
+      log.error("Couldn't download file (unknown error)")
+      return None
+  # скачиваем файл по ссылке:
+  try:
+    response = requests.get(full_url, stream=True)
+    data = response.content      # a `bytes` object
+  except:
+    log.error("fetch file data from url: %s"%full_url)
+    return None
+  return data
+
 def send_message(room_id,message):
   global client
   global log
@@ -607,7 +686,6 @@ def on_message(event):
                 reply_to_id=event['content']['m.relates_to']['m.in_reply_to']['event_id']
               except:
                 log.error("bad formated event reply - skip")
-                mba.send_message(log,client,room.room_id,"Внутренняя ошибка разбора сообщения - обратитесь к разработчику")
                 return False
             formatted_body=None
             format_type=None
@@ -624,10 +702,58 @@ def on_message(event):
                 event['content']['body'],\
                 formated_message=formatted_body,\
                 format_type=format_type,\
-                reply_to_id=reply_to_id\
+                reply_to_id=reply_to_id,\
+                file_url=None,\
+                file_type=None\
                 ) == False:
                 log.error("error process command: '%s'"%event['content']['body'])
                 return False
+        elif event['content']['msgtype'] == "m.image":
+          try:
+            file_type=event['content']['info']['mimetype']
+            file_url=event['content']['url']
+          except:
+            log.error("bad formated event reply - skip")
+            return False
+          log.debug("{0}: {1}".format(event['sender'], event['content']['body'].encode('utf8')))
+          log.debug("try lock before process_command()")
+          with lock:
+            log.debug("success lock before process_command()")
+            if process_command(\
+                event['sender'],\
+                event['room_id'],\
+                event['content']['body'],\
+                formated_message=None,\
+                format_type=None,\
+                reply_to_id=None,\
+                file_url=file_url,\
+                file_type=file_type\
+              ) == False:
+              log.error("error process command: '%s'"%event['content']['body'])
+              return False
+        elif event['content']['msgtype'] == "m.file":
+          try:
+            file_type=event['content']['info']['mimetype']
+            file_url=event['content']['url']
+          except:
+            log.error("bad formated event reply - skip")
+            return False
+          log.debug("{0}: {1}".format(event['sender'], event['content']['body'].encode('utf8')))
+          log.debug("try lock before process_command()")
+          with lock:
+            log.debug("success lock before process_command()")
+            if process_command(\
+                event['sender'],\
+                event['room_id'],\
+                event['content']['body'],\
+                formated_message=None,\
+                format_type=None,\
+                reply_to_id=None,\
+                file_url=file_url,\
+                file_type=file_type\
+              ) == False:
+              log.error("error process command: '%s'"%event['content']['body'])
+              return False
     else:
       print(event['type'])
     return True
@@ -1161,8 +1287,12 @@ def check_equal_messages(vk_body,matrix_body):
         .replace('&lt;','<')\
         .replace('<br>','\n')
   log.debug("check_equal_messages() after replace: vk_body: %s"%src)
+  log.debug("check_equal_messages() after replace: matrix_body: %s"%matrix_body)
   if src==matrix_body:
+    log.debug("check_equal_messages() equal!")
     return True
+  else:
+    log.debug("check_equal_messages() NOT equal!")
   return False
 
 def proccess_vk_message(bot_control_room,room,user,sender_name,m):
