@@ -95,20 +95,29 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     dialog=session_data_room["cur_dialog"]
     if file_type!=None and file_url!=None:
       # отправка файла:
-      if re.search("^image",file_type)==None:
-        log.warning("support only send images")
-        send_message(room,'Ошибка: пока поддерживается отправка только изображений')
-        return False
-      else:
+      if re.search("^image",file_type)!=None:
         # Отправка изображения из матрицы:
         photo_data=get_file(file_url)
         if photo_data==None:
           log.error("error get file by mxurl=%s"%file_url)
           send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           return False
         if vk_send_photo(session_data_vk["vk_id"],dialog["id"],cmd,photo_data,dialog["group"]) == False:
           log.error("error vk_send_photo() for user %s"%user)
           send_message(room,"не смог отправить фото в ВК - ошибка АПИ")
+          return False
+      else:
+        # Отправка простого файла из матрицы:
+        doc_data=get_file(file_url)
+        if doc_data==None:
+          log.error("error get file by mxurl=%s"%file_url)
+          send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          return False
+        if vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,doc_data,dialog["group"]) == False:
+          log.error("error vk_send_doc() for user %s"%user)
+          send_message(room,"не смог отправить файл в ВК - ошибка АПИ")
           return False
     else:
       # отправка текста:
@@ -321,6 +330,38 @@ def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
       api.messages.send(user_id=chat_id, message=message, forward_messages=forward_messages)
   except:
     log.error("vk_send_text API or network error")
+    return False
+  return True
+
+def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
+  global log
+  try:
+    session = get_session(vk_id)
+    api = vk.API(session, v=VK_API_VERSION)
+    # получаем адрес загрузки:
+    response=api.docs.getMessagesUploadServer()
+    log.debug("api.docs.getMessagesUploadServer return:")
+    log.debug(response)
+    # 
+    url = response['upload_url']
+    files = {'file': (name,doc_data,'multipart/form-data')}
+    r = requests.post(url, files=files)
+    log.debug("requests.post return: %s"%r.text)
+    ret=json.loads(r.text)
+    response=api.docs.save(file=ret['file'],title=name)
+    log.debug("api.docs.save return:")
+    log.debug(response)
+    attachment_str="doc%d_%d"%(response[0]['owner_id'],response[0]['did'])
+    if group:
+      ret=api.messages.send(chat_id=chat_id, message=name,attachment=(attachment_str))
+      log.debug("api..messages.send return:")
+      log.debug(ret)
+    else:
+      ret=api.messages.send(user_id=chat_id, message=name,attachment=(attachment_str))
+      log.debug("api..messages.send return:")
+      log.debug(ret)
+  except:
+    log.error("vk_send_doc API or network error")
     return False
   return True
 
