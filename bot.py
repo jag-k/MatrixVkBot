@@ -107,6 +107,18 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           log.error("error vk_send_photo() for user %s"%user)
           send_message(room,"не смог отправить фото в ВК - ошибка АПИ")
           return False
+      if re.search("^video",file_type)!=None:
+        # Отправка видео из матрицы:
+        video_data=get_file(file_url)
+        if video_data==None:
+          log.error("error get file by mxurl=%s"%file_url)
+          send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          return False
+        if vk_send_video(session_data_vk["vk_id"],dialog["id"],cmd,video_data,dialog["group"]) == False:
+          log.error("error vk_send_video() for user %s"%user)
+          send_message(room,"не смог отправить видео в ВК - ошибка АПИ")
+          return False
       else:
         # Отправка простого файла из матрицы:
         doc_data=get_file(file_url)
@@ -330,6 +342,38 @@ def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
       api.messages.send(user_id=chat_id, message=message, forward_messages=forward_messages)
   except:
     log.error("vk_send_text API or network error")
+    return False
+  return True
+
+def vk_send_video(vk_id, chat_id, name, video_data, group=False):
+  global log
+  try:
+    session = get_session(vk_id)
+    api = vk.API(session, v=VK_API_VERSION)
+    # получаем адрес загрузки:
+    response=api.docs.getMessagesUploadServer()
+    log.debug("api.docs.getMessagesUploadServer return:")
+    log.debug(response)
+    # 
+    url = response['upload_url']
+    files = {'file': (name,video_data,'multipart/form-data')}
+    r = requests.post(url, files=files)
+    log.debug("requests.post return: %s"%r.text)
+    ret=json.loads(r.text)
+    response=api.video.save(file=ret['file'],title=name)
+    log.debug("api.docs.save return:")
+    log.debug(response)
+    attachment_str="video%d_%d"%(response['owner_id'],response['vid'])
+    if group:
+      ret=api.messages.send(chat_id=chat_id, message=name,attachment=(attachment_str))
+      log.debug("api.messages.send return:")
+      log.debug(ret)
+    else:
+      ret=api.messages.send(user_id=chat_id, message=name,attachment=(attachment_str))
+      log.debug("api.messages.send return:")
+      log.debug(ret)
+  except:
+    log.error("vk_send_video API or network error")
     return False
   return True
 
@@ -749,7 +793,10 @@ def on_message(event):
                 ) == False:
                 log.error("error process command: '%s'"%event['content']['body'])
                 return False
-        elif event['content']['msgtype'] == "m.image":
+        elif event['content']['msgtype'] == "m.image" or \
+          event['content']['msgtype'] == "m.file" or \
+          event['content']['msgtype'] == "m.video" \
+        :
           try:
             file_type=event['content']['info']['mimetype']
             file_url=event['content']['url']
@@ -772,29 +819,7 @@ def on_message(event):
               ) == False:
               log.error("error process command: '%s'"%event['content']['body'])
               return False
-        elif event['content']['msgtype'] == "m.file":
-          try:
-            file_type=event['content']['info']['mimetype']
-            file_url=event['content']['url']
-          except:
-            log.error("bad formated event reply - skip")
-            return False
-          log.debug("{0}: {1}".format(event['sender'], event['content']['body'].encode('utf8')))
-          log.debug("try lock before process_command()")
-          with lock:
-            log.debug("success lock before process_command()")
-            if process_command(\
-                event['sender'],\
-                event['room_id'],\
-                event['content']['body'],\
-                formated_message=None,\
-                format_type=None,\
-                reply_to_id=None,\
-                file_url=file_url,\
-                file_type=file_type\
-              ) == False:
-              log.error("error process command: '%s'"%event['content']['body'])
-              return False
+
     else:
       print(event['type'])
     return True
