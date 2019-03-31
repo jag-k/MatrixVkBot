@@ -107,7 +107,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           log.error("error vk_send_photo() for user %s"%user)
           send_message(room,"не смог отправить фото в ВК - ошибка АПИ")
           return False
-      if re.search("^video",file_type)!=None:
+      elif re.search("^video",file_type)!=None:
         # Отправка видео из матрицы:
         video_data=get_file(file_url)
         if video_data==None:
