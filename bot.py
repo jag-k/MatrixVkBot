@@ -351,19 +351,15 @@ def vk_send_video(vk_id, chat_id, name, video_data, group=False):
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
     # получаем адрес загрузки:
-    response=api.docs.getMessagesUploadServer()
-    log.debug("api.docs.getMessagesUploadServer return:")
-    log.debug(response)
-    # 
-    url = response['upload_url']
-    files = {'file': (name,video_data,'multipart/form-data')}
+    save_response=api.video.save(name=name)
+    log.debug("api.video.save return:")
+    log.debug(save_response)
+    url = save_response['upload_url']
+    files = {'video_file': (name,video_data,'multipart/form-data')}
     r = requests.post(url, files=files)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
-    response=api.video.save(file=ret['file'],title=name)
-    log.debug("api.docs.save return:")
-    log.debug(response)
-    attachment_str="video%d_%d"%(response['owner_id'],response['vid'])
+    attachment_str="video%d_%d"%(save_response['owner_id'],save_response['vid'])
     if group:
       ret=api.messages.send(chat_id=chat_id, message=name,attachment=(attachment_str))
       log.debug("api.messages.send return:")
