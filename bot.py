@@ -247,6 +247,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       return False
     send_message(room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
     data["users"][user]["rooms"][room_id]={}
+    data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=""
     data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
     data["users"][user]["rooms"][room_id]["state"]="dialog"
     # сохраняем на диск:
