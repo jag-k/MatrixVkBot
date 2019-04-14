@@ -520,6 +520,47 @@ def get_dialogs(vk_id):
             break
   return order
 
+def close_dialog(user,room_id):
+  global client
+  global lock
+  global data
+  log.debug("close_dialog()")
+  log.debug("Try remove room: '%s' from data of user '%s'"%(room_id,user))
+  with lock:
+    if user in data["users"]:
+      if "rooms" in data["users"][user]:
+        if room_id in data["users"][user]["rooms"]:
+          # удаляем запись об этой комнате из данных:
+          log.info("Remove room: '%s' from data of user '%s'"%(room_id,user))
+          del data["users"][user]["rooms"][room_id]
+          log.info("save state data on disk")
+          save_data(data)
+          try:
+            # Нужно выйти из комнаты:
+            log.info("Leave from room: '%s'"%(room_id))
+            response = client.api.leave_room(room_id)
+          except:
+            log.error("error leave room: '%s'"%(room_id))
+            return None
+          try:
+            # И забыть её:
+            log.info("Forgot room: '%s'"%(room_id))
+            response = client.api.forget_room(room_id)
+          except:
+            log.error("error forgot room: '%s'"%(room_id))
+            return None
+          return None
+          log.info("success close dialog for user invite user '%s' and room '%s'"%(user,room_id))
+          return True
+        else:
+          log.warning("unknown room '%s' for user '%s'"%(room_id,user))
+    else:
+      log.warning("unknown user: '%s'"%(user))
+
+  log.info("do not close dialog for user user '%s' and room '%s'"%(user,room_id))
+  return False
+              
+
 def login_command(user,room,cmd):
   global lock
   global data
@@ -749,6 +790,7 @@ def send_notice(room_id,message):
     return False
   return True
 
+
 # Called when a message is recieved.
 def on_message(event):
     global client
@@ -756,8 +798,15 @@ def on_message(event):
     global lock
     print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
     if event['type'] == "m.room.member":
+        # join:
         if event['content']['membership'] == "join":
-            print("{0} joined".format(event['content']['displayname']))
+            log.info("{0} joined".format(event['content']['displayname']))
+        # leave:
+        if event['content']['membership'] == "leave":
+            log.info("{0} leave".format(event['sender']))
+            # close room:
+            if close_dialog(event['sender'],event['room_id']) == False:
+              log.warning("close_dialog()==False")
     elif event['type'] == "m.room.message":
         if event['content']['msgtype'] == "m.text":
             reply_to_id=None
