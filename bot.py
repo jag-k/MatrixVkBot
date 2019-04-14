@@ -644,6 +644,8 @@ def create_room(matrix_uid, room_name):
   global log
   global client
 
+  log.debug("create_room()")
+
   # сначала спрашиваем у сервера, есть ли такой пользователь (чтобы не создавать просто так комнату):
   try:
     response = client.api.get_display_name(matrix_uid)
@@ -1539,8 +1541,8 @@ def vk_receiver_thread(user):
 
           cur_dialog=None
           for item in dialogs:
-            print("item:")
-            print(item)
+            #print("item:")
+            #print(item)
             if "chat_id" in m:
               # значит ищем среди групп:
               if item["group"] == True and item["id"] == m["chat_id"]:
@@ -1566,6 +1568,7 @@ def vk_receiver_thread(user):
             data["users"][user]["rooms"][room_id]={}
             data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
             data["users"][user]["rooms"][room_id]["state"]="dialog"
+            data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=""
             # сохраняем на диск:
             save_data(data)
           # отправляем текст во вновь созданную комнату:
