@@ -21,6 +21,7 @@ import os
 import pickle
 import re
 import threading
+import random
 import requests
 import traceback
 import vk
@@ -279,6 +280,7 @@ def get_new_vk_messages(user):
   api = vk.API(session, v=VK_POLLING_VERSION)
   try:
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
+    #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"],"wait":25})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
   except vk.api.VkAPIError:
     timeout = 3
@@ -335,12 +337,13 @@ def info_extractor(info):
 def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
   global log
   try:
+    random_id=random.randint(0,4294967296)
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
     if group:
-      api.messages.send(chat_id=chat_id, message=message, forward_messages=forward_messages)
+      api.messages.send(chat_id=chat_id, random_id=random_id,  message=message, forward_messages=forward_messages)
     else:
-      api.messages.send(user_id=chat_id, message=message, forward_messages=forward_messages)
+      api.messages.send(user_id=chat_id, random_id=random_id, message=message, forward_messages=forward_messages)
   except:
     log.error("vk_send_text API or network error")
     return False
@@ -408,6 +411,8 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
 
 def vk_send_photo(vk_id, chat_id, name, photo_data, group=False):
   global log
+  random_id=random.randint(0,4294967296)
+
   try:
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
@@ -424,12 +429,14 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, group=False):
     response=api.photos.saveMessagesPhoto(photo=ret['photo'],server=ret['server'],hash=ret['hash'])
     log.debug("api.photos.saveMessagesPhoto return:")
     log.debug(response)
+    attachment="photo%(owner_id)d_%(media_id)d"%{"owner_id":response[0]["owner_id"],"media_id":response[0]["id"]}
+    log.debug("attachment=%s"%attachment)
     if group:
-      ret=api.messages.send(chat_id=chat_id, message=name,attachment=(response[0]["id"]))
+      ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=attachment)
       log.debug("api..messages.send return:")
       log.debug(ret)
     else:
-      ret=api.messages.send(user_id=chat_id, message=name,attachment=(response[0]["id"]))
+      ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=attachment)
       log.debug("api..messages.send return:")
       log.debug(ret)
   except:
@@ -846,7 +853,10 @@ def on_message(event):
         elif event['content']['msgtype'] == "m.image":
           try:
             file_url=event['content']['url']
-            file_type=event['content']['info']['imageinfo']['mimetype']
+            if "imageinfo" in event['content']['info']:
+              file_type=event['content']['info']['imageinfo']['mimetype']
+            else:
+              file_type=event['content']['info']['mimetype']
           except:
             log.error("bad formated event with file data - skip")
             log.error(event)
