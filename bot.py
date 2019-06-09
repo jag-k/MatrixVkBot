@@ -1615,7 +1615,7 @@ def vk_receiver_thread(user):
 
     # FIXME 
     log.info("sleep main loop 1")
-    time.sleep(5)
+    time.sleep(1)
 
   return True
 
