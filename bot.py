@@ -42,8 +42,8 @@ vk_threads = {}
 
 vk_dialogs = {}
 
-VK_API_VERSION = '3.0'
-VK_POLLING_VERSION = '3.0'
+VK_API_VERSION = '5.0'
+VK_POLLING_VERSION = '5.0'
 
 currentchat = {}
 
@@ -289,20 +289,20 @@ def get_new_vk_messages(user):
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
-  #log.debug("New data from VK:")
-  #log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
+  log.debug("New data from VK:")
+  log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
 
   msgs = new['messages']
   with lock:
     data["users"][user]["vk"]["pts"] = new["new_pts"]
-  count = msgs[0]
+  count = msgs["count"]
 
   res = None
   if count == 0:
     pass
   else:
     res={}
-    res["messages"] = msgs[1:]
+    res["messages"] = msgs["items"]
     res["profiles"] = new["profiles"]
   return res
 
@@ -1504,7 +1504,6 @@ def vk_receiver_thread(user):
     res=get_new_vk_messages(user)
     if res != None:
       for m in res["messages"]:
-        # FIXME
         log.debug("Receive message from VK:")
         log.debug(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
         found_room=False
@@ -1584,8 +1583,9 @@ def vk_receiver_thread(user):
           if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
             log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
-      # FIXME 
-      time.sleep(2)
+    # FIXME 
+    log.info("sleep main loop 1")
+    time.sleep(1)
 
   return True
 
