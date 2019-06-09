@@ -42,8 +42,8 @@ vk_threads = {}
 
 vk_dialogs = {}
 
-VK_API_VERSION = '5.0'
-VK_POLLING_VERSION = '5.0'
+VK_API_VERSION = '5.95'
+VK_POLLING_VERSION = '5.95'
 
 currentchat = {}
 
@@ -487,18 +487,18 @@ def get_dialogs(vk_id):
     if 'chat_id' in chat:
       chat['title'] = replace_shields(chat['title'])
       order.append({'title': chat['title'], 'id': chat['chat_id'], 'group': True})
-    elif chat['uid'] > 0:
-      order.append({'title': None, 'id': chat['uid'], 'group': False})
-      users_ids.append(chat['uid'])
-    elif chat['uid'] < 0:
-      order.append({'title': None, 'id': chat['uid'],'group': False})
-      group_ids.append(chat['uid'])
+    elif chat["peer_id"] > 0:
+      order.append({'title': None, 'id': chat["peer_id"], 'group': False})
+      users_ids.append(chat["peer_id"])
+    elif chat["peer_id"] < 0:
+      order.append({'title': None, 'id': chat["peer_id"],'group': False})
+      group_ids.append(chat["peer_id"])
 
   for g in group_ids:
     positive_group_ids.append(str(g)[1:])
 
   if users_ids:
-    users = api.users.get(user_ids=users_ids, fields=['first_name', 'last_name', 'uid'])
+    users = api.users.get(user_ids=users_ids, fields=['first_name', 'last_name', "peer_id"])
   else:
     users = []
 
@@ -511,7 +511,7 @@ def get_dialogs(vk_id):
     if output['title'] == ' ... ' or not output['title']:
       if output['id'] > 0:
         for x in users:
-          if x['uid'] == output['id']:
+          if x["peer_id"] == output['id']:
             output['title'] = '{} {}'.format(x['first_name'], x['last_name'])
             break
       else:
@@ -642,7 +642,7 @@ def load_data():
   return data
 
 def create_room(matrix_uid, room_name):
-  global log
+  global louser_id
   global client
 
   log.debug("create_room()")
@@ -825,21 +825,21 @@ def on_message(event):
             if "formatted_body" in event['content'] and "format" in event['content']:
               formatted_body=event['content']['formatted_body']
               format_type=event['content']['format']
-            print("{0}: {1}".format(event['sender'], event['content']['body']))
+            log.debug("{0}: {1}".format(event['sender'], event['content']["body"]))
             log.debug("try lock before process_command()")
             with lock:
               log.debug("success lock before process_command()")
               if process_command(\
                 event['sender'],\
                 event['room_id'],\
-                event['content']['body'],\
+                event['content']["body"],\
                 formated_message=formatted_body,\
                 format_type=format_type,\
                 reply_to_id=reply_to_id,\
                 file_url=None,\
                 file_type=None\
                 ) == False:
-                log.error("error process command: '%s'"%event['content']['body'])
+                log.error("error process command: '%s'"%event['content']["body"])
                 return False
         elif event['content']['msgtype'] == "m.image" or \
           event['content']['msgtype'] == "m.file" or \
@@ -851,21 +851,21 @@ def on_message(event):
           except:
             log.error("bad formated event reply - skip")
             return False
-          log.debug("{0}: {1}".format(event['sender'], event['content']['body'].encode('utf8')))
+          log.debug("{0}: {1}".format(event['sender'], event['content']["body"].encode('utf8')))
           log.debug("try lock before process_command()")
           with lock:
             log.debug("success lock before process_command()")
             if process_command(\
                 event['sender'],\
                 event['room_id'],\
-                event['content']['body'],\
+                event['content']["body"],\
                 formated_message=None,\
                 format_type=None,\
                 reply_to_id=None,\
                 file_url=file_url,\
                 file_type=file_type\
               ) == False:
-              log.error("error process command: '%s'"%event['content']['body'])
+              log.error("error process command: '%s'"%event['content']["body"])
               return False
 
     else:
@@ -1088,17 +1088,29 @@ def send_geo_to_matrix(room,sender_name,geo):
     return False
 
 def send_photo_to_matrix(room,sender_name,attachment):
-  src=attachment["photo"]['src_small']
-  if "src" in attachment["photo"]:
-    src=attachment["photo"]["src"]
-  if "src_big" in attachment["photo"]:
-    src=attachment["photo"]["src_big"]
-  if "src_xbig" in attachment["photo"]:
-    src=attachment["photo"]["src_xbig"]
-  if "src_xxbig" in attachment["photo"]:
-    src=attachment["photo"]["src_xxbig"]
-  width=attachment["photo"]["width"]
-  height=attachment["photo"]["height"]
+  if "sizes" not in attachment["photo"]:
+    log.error("parse photo attachment - not found tag 'sizes'")
+    log.error(attachment["photo"])
+    return False
+  # находим самый большой размер фото:
+  width=0
+  height=0
+  src=None
+  for item in attachment["photo"]["sizes"]:
+    if item["width"] > width:
+      width=item["width"]
+      height=item["height"]
+      src=item["url"]
+      continue
+    if item["height"] > height:
+      width=item["width"]
+      height=item["height"]
+      src=item["url"]
+
+  if src == None:
+    log.error("get src for photo")
+    log.error(attachment["photo"])
+    return False
   
   image_data=get_data_from_url(src)
   if image_data==None:
@@ -1422,13 +1434,13 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   if m["out"]==1:
     log.debug("receive our message")
     owner_message=True
-    if check_equal_messages(m["body"],last_matrix_owner_message):
+    if check_equal_messages(m["text"],last_matrix_owner_message):
       # текст такой же, какой мы отправляли последний раз в эту комнату из матрицы - не отображаем его:
       log.debug("receive from vk our text, sended from matrix - skip it")
       return True
     else:
       # Это наше сообщение, но отправлено из другого клиента. Шлём просто текст, но через m.notice, чтобы не дилинькал клиент:
-      text="Ваша реплика:\n" + m["body"]
+      text="Ваша реплика:\n" + m["text"]
       return send_notice(room,text)
 
   if 'fwd_messages' in m:
@@ -1436,8 +1448,8 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
       text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
     # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
     for fwd in m['fwd_messages']:
-      fwd_uid=fwd['uid']
-      fwd_text=fwd['body']
+      fwd_uid=fwd["peer_id"]
+      fwd_text=fwd["text"]
       # TODO получить ФИО авторов перенаправляемых сообщений
       text+="<blockquote>\n<p>В ответ на реплику от <strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n" % {"fwd_user":fwd_uid, "fwd_text":fwd_text}
       # если это ответ на вложения, то добавляем их как ссылки:
@@ -1455,12 +1467,12 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
           if url!=None:
             text+="<p>вложение: %(url)s</p>\n" % {"url":url}
       text+="</blockquote>\n"
-    text+="<p>%s</p>\n" % m["body"]
+    text+="<p>%s</p>\n" % m["text"]
   else:
     if sender_name!=None:
-      text="<strong>%s</strong>: %s"%(sender_name,m["body"])
+      text="<strong>%s</strong>: %s"%(sender_name,m["text"])
     else:
-      text=m["body"]
+      text=m["text"]
 
   if len(text)>0:
     if send_html(room,text) == True:
@@ -1510,7 +1522,7 @@ def vk_receiver_thread(user):
         for room in data["users"][user]["rooms"]:
           if "cur_dialog" in data["users"][user]["rooms"][room]:
             sender_name=None
-            vk_room_id=m["uid"]
+            vk_room_id=m["peer_id"]
             # проверяем, групповой ли это чат:
             if "chat_id" in m:
               # групповой чат:
@@ -1524,7 +1536,7 @@ def vk_receiver_thread(user):
                 # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
                 # Ищем отправителя в профилях полученного сообщения:
                 for profile in res["profiles"]:
-                  if profile["uid"]==m["uid"]:
+                  if profile["peer_id"]==m["peer_id"]:
                     sender_name="%s %s"%(profile["first_name"],profile["last_name"])
               if proccess_vk_message(bot_control_room,room,user,sender_name,m) == False:
                 log.warning("proccess_vk_message(room=%s) return false"%(room))
@@ -1550,12 +1562,12 @@ def vk_receiver_thread(user):
                 cur_dialog=item
             else:
               # значит ищем среди чатов:
-              if item["group"] == False and item["id"] == m["uid"]:
+              if item["group"] == False and item["id"] == m["peer_id"]:
                 cur_dialog=item
           if cur_dialog == None:
             log.error("can not found VK sender in dialogs - logic error - skip")
-            send_message(bot_control_room,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["uid"])
-            send_message(bot_control_room,"Сообщение было: '%s'"%m["body"])
+            send_message(bot_control_room,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["peer_id"])
+            send_message(bot_control_room,"Сообщение было: '%s'"%m["text"])
             continue
           
           room_id=create_room(user,cur_dialog["title"] + " (VK)")
@@ -1577,7 +1589,7 @@ def vk_receiver_thread(user):
             # Групповой чат - добавляем имя отправителя:
             # Ищем отправителя в профилях полученного сообщения:
             for profile in res["profiles"]:
-              if profile["uid"]==m["uid"]:
+              if profile["peer_id"]==m["peer_id"]:
                 sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
 
           if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
@@ -1585,7 +1597,7 @@ def vk_receiver_thread(user):
 
     # FIXME 
     log.info("sleep main loop 1")
-    time.sleep(1)
+    time.sleep(5)
 
   return True
 
