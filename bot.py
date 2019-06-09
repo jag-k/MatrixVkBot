@@ -1610,7 +1610,7 @@ if __name__ == '__main__':
 
   # create the logging file handler
   fh = logging.FileHandler(conf.log_path)
-  formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+  formatter = logging.Formatter('%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(funcName)s() %(levelname)s - %(message)s')
   fh.setFormatter(formatter)
 
   if conf.debug:
