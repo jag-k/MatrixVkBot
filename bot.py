@@ -799,6 +799,7 @@ def on_message(event):
     global client
     global log
     global lock
+    print("new MATRIX message:")
     print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
     if event['type'] == "m.room.member":
         # join:
@@ -819,6 +820,7 @@ def on_message(event):
                 reply_to_id=event['content']['m.relates_to']['m.in_reply_to']['event_id']
               except:
                 log.error("bad formated event reply - skip")
+                log.error(event)
                 return False
             formatted_body=None
             format_type=None
@@ -841,16 +843,24 @@ def on_message(event):
                 ) == False:
                 log.error("error process command: '%s'"%event['content']["body"])
                 return False
-        elif event['content']['msgtype'] == "m.image" or \
-          event['content']['msgtype'] == "m.file" or \
-          event['content']['msgtype'] == "m.video" \
-        :
+        elif event['content']['msgtype'] == "m.file" or \
+          event['content']['msgtype'] == "m.video":
           try:
             file_type=event['content']['info']['mimetype']
             file_url=event['content']['url']
           except:
-            log.error("bad formated event reply - skip")
+            log.error("bad formated event with file data - skip")
+            log.error(event)
             return False
+        elif event['content']['msgtype'] == "m.image":
+          try:
+            file_url=event['content']['url']
+            file_type=event['content']['info']['imageinfo']['mimetype']
+          except:
+            log.error("bad formated event with file data - skip")
+            log.error(event)
+            return False
+
           log.debug("{0}: {1}".format(event['sender'], event['content']["body"].encode('utf8')))
           log.debug("try lock before process_command()")
           with lock:
@@ -1495,7 +1505,6 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     send_message(bot_control_room,'Ошибка: не смог отправить сообщение в матрицу из ВК в комнату %s'%room)
     log.warning("сообщение было:")
     log.warning(m)
-  log.warning(m)
 
   return send_status
 
