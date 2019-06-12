@@ -1165,7 +1165,7 @@ def send_photo_to_matrix(room,sender_name,attachment):
     return False
 
 def send_video_to_matrix(room,sender_name,attachment):
-  src=attachment["video"]['image']
+  src=attachment["video"]['first_frame_320']
   
   image_data=get_data_from_url(src)
   if image_data==None:
@@ -1192,7 +1192,7 @@ def send_video_to_matrix(room,sender_name,attachment):
   if matrix_send_image(room,mxc_url,file_name,height=0,width=0,mimetype=mimetype,size=size) == False:
     log.error("send file to room")
     return False
-  video_url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
+  video_url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
   return send_message(room,"Ссылка на просмотр потокового видео: %s"%video_url)
 
 def send_audio_to_matrix(room,sender_name,attachment):
