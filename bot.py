@@ -490,11 +490,17 @@ def get_dialogs(vk_id):
   positive_group_ids = []
   try:
     api = vk.API(get_session(vk_id), v=VK_API_VERSION)
-    dialogs = api.messages.getDialogs(count=200)
+    #dialogs = api.messages.getDialogs(count=200)
+    dialogs = api.messages.getConversations(count=200,extended=1,fields="id,first_name,last_name,name,type")
+    log.debug("api.messages.getDialogs():")
+    log.debug(json.dumps(dialogs, indent=4, sort_keys=True,ensure_ascii=False))
   except:
     log.error("get dialogs from VK API")
     return None
-  for chat in dialogs[1:]:
+#  try:
+  for chat in dialogs["items"]:
+    log.debug("chat:")
+    log.debug(chat)
     if 'chat_id' in chat:
       chat['title'] = replace_shields(chat['title'])
       order.append({'title': chat['title'], 'id': chat['chat_id'], 'group': True})
@@ -530,6 +536,10 @@ def get_dialogs(vk_id):
           if str(f['gid']) == str(output['id'])[1:]:
             output['title'] = '{}'.format(f['name'])
             break
+#  except:
+#    log.error("proccess dialogs from VK API")
+#    return None
+
   return order
 
 def close_dialog(user,room_id):
