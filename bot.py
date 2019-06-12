@@ -322,6 +322,8 @@ def get_session(token):
 def get_tses(session):
     api = vk.API(session, v=VK_POLLING_VERSION)
     ts = api.messages.getLongPollServer(need_pts=1)
+    print("ts=",ts)
+#    sys.exit()
     return ts['ts'], ts['pts']
 
 def verifycode(code):
@@ -351,6 +353,7 @@ def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
 
 def vk_send_video(vk_id, chat_id, name, video_data, group=False):
   global log
+  random_id=random.randint(0,4294967296)
   try:
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
@@ -363,13 +366,13 @@ def vk_send_video(vk_id, chat_id, name, video_data, group=False):
     r = requests.post(url, files=files)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
-    attachment_str="video%d_%d"%(save_response['owner_id'],save_response['vid'])
+    attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
     if group:
-      ret=api.messages.send(chat_id=chat_id, message=name,attachment=(attachment_str))
+      ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api.messages.send return:")
       log.debug(ret)
     else:
-      ret=api.messages.send(user_id=chat_id, message=name,attachment=(attachment_str))
+      ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api.messages.send return:")
       log.debug(ret)
   except:
@@ -379,6 +382,7 @@ def vk_send_video(vk_id, chat_id, name, video_data, group=False):
 
 def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
   global log
+  random_id=random.randint(0,4294967296)
   try:
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
@@ -395,13 +399,13 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
     response=api.docs.save(file=ret['file'],title=name)
     log.debug("api.docs.save return:")
     log.debug(response)
-    attachment_str="doc%d_%d"%(response[0]['owner_id'],response[0]['did'])
+    attachment_str="doc%d_%d"%(response['doc']['owner_id'],response['doc']['id'])
     if group:
-      ret=api.messages.send(chat_id=chat_id, message=name,attachment=(attachment_str))
+      ret=api.messages.send(chat_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api..messages.send return:")
       log.debug(ret)
     else:
-      ret=api.messages.send(user_id=chat_id, message=name,attachment=(attachment_str))
+      ret=api.messages.send(user_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api..messages.send return:")
       log.debug(ret)
   except:
@@ -864,7 +868,10 @@ def on_message(event):
         elif event['content']['msgtype'] == "m.file":
           try:
             file_url=event['content']['url']
-            file_type=event['content']['info']['fileinfo']['mimetype']
+            if "fileinfo" in event['content']['info']:
+              file_type=event['content']['info']['fileinfo']['mimetype']
+            else:
+              file_type=event['content']['info']['mimetype']
           except:
             log.error("bad formated event with file data - skip")
             log.error(event)
