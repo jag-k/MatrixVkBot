@@ -104,7 +104,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           return False
-        if vk_send_photo(session_data_vk["vk_id"],dialog["id"],cmd,photo_data,dialog["group"]) == False:
+        if vk_send_photo(session_data_vk["vk_id"],dialog["id"],cmd,photo_data,dialog["type"]) == False:
           log.error("error vk_send_photo() for user %s"%user)
           send_message(room,"не смог отправить фото в ВК - ошибка АПИ")
           return False
@@ -116,7 +116,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           return False
-        if vk_send_video(session_data_vk["vk_id"],dialog["id"],cmd,video_data,dialog["group"]) == False:
+        if vk_send_video(session_data_vk["vk_id"],dialog["id"],cmd,video_data,dialog["type"]) == False:
           log.error("error vk_send_video() for user %s"%user)
           send_message(room,"не смог отправить видео в ВК - ошибка АПИ")
           return False
@@ -128,13 +128,13 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           send_message(bot_control_room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
           return False
-        if vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,doc_data,dialog["group"]) == False:
+        if vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,doc_data,dialog["type"]) == False:
           log.error("error vk_send_doc() for user %s"%user)
           send_message(room,"не смог отправить файл в ВК - ошибка АПИ")
           return False
     else:
       # отправка текста:
-      if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["group"]) == False:
+      if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["type"]) == False:
         log.error("error vk_send_text() for user %s"%user)
         send_message(room,"не смог отправить сообщение в ВК - ошибка АПИ")
         return False
@@ -336,13 +336,13 @@ def info_extractor(info):
     info = info[-1].url[8:-1].split('.')
     return info
 
-def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
+def vk_send_text(vk_id, chat_id, message, chat_type="user", forward_messages=None):
   global log
   try:
     random_id=random.randint(0,4294967296)
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
-    if group:
+    if chat_type!="user":
       api.messages.send(chat_id=chat_id, random_id=random_id,  message=message, forward_messages=forward_messages)
     else:
       api.messages.send(user_id=chat_id, random_id=random_id, message=message, forward_messages=forward_messages)
@@ -351,7 +351,7 @@ def vk_send_text(vk_id, chat_id, message, group=False, forward_messages=None):
     return False
   return True
 
-def vk_send_video(vk_id, chat_id, name, video_data, group=False):
+def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
   global log
   random_id=random.randint(0,4294967296)
   try:
@@ -367,7 +367,7 @@ def vk_send_video(vk_id, chat_id, name, video_data, group=False):
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
-    if group:
+    if chat_type!="user":
       ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api.messages.send return:")
       log.debug(ret)
@@ -380,7 +380,7 @@ def vk_send_video(vk_id, chat_id, name, video_data, group=False):
     return False
   return True
 
-def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
+def vk_send_doc(vk_id, chat_id, name, doc_data, chat_type="user"):
   global log
   random_id=random.randint(0,4294967296)
   try:
@@ -400,7 +400,7 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
     log.debug("api.docs.save return:")
     log.debug(response)
     attachment_str="doc%d_%d"%(response['doc']['owner_id'],response['doc']['id'])
-    if group:
+    if chat_type!="user":
       ret=api.messages.send(chat_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api..messages.send return:")
       log.debug(ret)
@@ -413,7 +413,7 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, group=False):
     return False
   return True
 
-def vk_send_photo(vk_id, chat_id, name, photo_data, group=False):
+def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
   global log
   random_id=random.randint(0,4294967296)
 
@@ -435,7 +435,7 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, group=False):
     log.debug(response)
     attachment="photo%(owner_id)d_%(media_id)d"%{"owner_id":response[0]["owner_id"],"media_id":response[0]["id"]}
     log.debug("attachment=%s"%attachment)
-    if group:
+    if chat_type!="user":
       ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=attachment)
       log.debug("api..messages.send return:")
       log.debug(ret)
@@ -467,81 +467,61 @@ def dialogs_command(user,room,cmd):
 
   # Формируем список диалогов:
   send_message(room,"Выберите диалог:")
-  message=""
-  index=1
-  dialogs_list={}
-  for item in dialogs:
-    dialogs_list[index]=item
-    message+="%d. "%index
-    message+=item["title"]
-    message+="\n"
-    index+=1
-  send_message(room,message)
-  data["users"][user]["rooms"][room]["state"]="wait_dialog_index"
-  data["users"][user]["rooms"][room]["dialogs_list"]=dialogs_list
+  try:
+    message=""
+    index=1
+    dialogs_list={}
+    for item in dialogs["all"]:
+      dialogs_list[index]=item
+      message+="%d. "%index
+      log.debug(item)
+      message+=item["title"]
+      message+="\n"
+      index+=1
+    send_message(room,message)
+    data["users"][user]["rooms"][room]["state"]="wait_dialog_index"
+    data["users"][user]["rooms"][room]["dialogs_list"]=dialogs_list
+  except:
+    log.error("create message with dialogs")
+    return False
   return True
 
 def get_dialogs(vk_id):
   global log
+  out={}
   # Формируем структуры:
-  order = []
-  users_ids = []
-  group_ids = []
-  positive_group_ids = []
   try:
     api = vk.API(get_session(vk_id), v=VK_API_VERSION)
     #dialogs = api.messages.getDialogs(count=200)
     dialogs = api.messages.getConversations(count=200,extended=1,fields="id,first_name,last_name,name,type")
     log.debug("api.messages.getDialogs():")
-    log.debug(json.dumps(dialogs, indent=4, sort_keys=True,ensure_ascii=False))
+    #data=json.dumps(dialogs, indent=4, sort_keys=True,ensure_ascii=False)
+    #f=open("dump.json","w+")
+    #f.write(data)
+    #f.close()
+    out["groups"]=dialogs["groups"]
+    out["users"]=dialogs["profiles"]
+    # прописываем title и тип:
+    for user in out["users"]:
+      #log.info("user: %s"%user["last_name"])
+      user["type"]="user"
+      # приводим к единообразию:
+      title=user["first_name"]
+      if user["last_name"]!="":
+        title+=" " + user["last_name"]
+      user["title"]=title
+    for group in out["groups"]:
+      # приводим к единообразию:
+      title=group["name"]
+      group["title"]=title
+    out["all"]=dialogs["groups"]+out["users"]
+
   except:
     log.error("get dialogs from VK API")
     return None
-#  try:
-  for chat in dialogs["items"]:
-    log.debug("chat:")
-    log.debug(chat)
-    if 'chat_id' in chat:
-      chat['title'] = replace_shields(chat['title'])
-      order.append({'title': chat['title'], 'id': chat['chat_id'], 'group': True})
-    elif chat["peer_id"] > 0:
-      order.append({'title': None, 'id': chat["peer_id"], 'group': False})
-      users_ids.append(chat["peer_id"])
-    elif chat["peer_id"] < 0:
-      order.append({'title': None, 'id': chat["peer_id"],'group': False})
-      group_ids.append(chat["peer_id"])
-
-  for g in group_ids:
-    positive_group_ids.append(str(g)[1:])
-
-  if users_ids:
-    users = api.users.get(user_ids=users_ids, fields=['first_name', 'last_name', "peer_id"])
-  else:
-    users = []
-
-  if positive_group_ids:
-    groups = api.groups.getById(group_ids=positive_group_ids, fields=[])
-  else:
-    groups = []
-
-  for output in order:
-    if output['title'] == ' ... ' or not output['title']:
-      if output['id'] > 0:
-        for x in users:
-          if x["peer_id"] == output['id']:
-            output['title'] = '{} {}'.format(x['first_name'], x['last_name'])
-            break
-      else:
-        for f in groups:
-          if str(f['gid']) == str(output['id'])[1:]:
-            output['title'] = '{}'.format(f['name'])
-            break
-#  except:
-#    log.error("proccess dialogs from VK API")
-#    return None
-
-  return order
-
+  #log.debug(json.dumps(out, indent=4, sort_keys=True,ensure_ascii=False))
+  return out
+  
 def close_dialog(user,room_id):
   global client
   global lock
@@ -660,6 +640,8 @@ def load_data():
     data={}
     data["users"]={}
     save_data(data)
+  #print(json.dumps(data, indent=4, sort_keys=True,ensure_ascii=False))
+  #sys.exit()
   return data
 
 def create_room(matrix_uid, room_name):
@@ -1011,7 +993,7 @@ def main():
       num=start_vk_polls()
       if num > 0:
         log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
-      time.sleep(5)
+      time.sleep(1)
     log.info("exit main loop")
 
 def check_thread_exist(vk_id):
@@ -1587,18 +1569,17 @@ def vk_receiver_thread(user):
             send_message(bot_control_room,'Не смог получить спиоок бесед из ВК - поэтому не смог создать новую комнату в связи с пришедшикомнату попробуйте позже :-(')
 
           cur_dialog=None
-          for item in dialogs:
-            #print("item:")
-            #print(item)
-            if "chat_id" in m:
-              # значит ищем среди групп:
-              if item["group"] == True and item["id"] == m["chat_id"]:
-                room_name=item["title"]
+          if "chat_id" in m:
+            # значит ищем среди групп:
+            for item in dialogs["groups"]:
+              if item["id"] == m["chat_id"]:
                 cur_dialog=item
-            else:
-              # значит ищем среди чатов:
-              if item["group"] == False and item["id"] == m["peer_id"]:
+          else:
+            # значит ищем среди чатов:
+            for item in dialogs["users"]:
+              if item["id"] == m["peer_id"]:
                 cur_dialog=item
+
           if cur_dialog == None:
             log.error("can not found VK sender in dialogs - logic error - skip")
             send_message(bot_control_room,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["peer_id"])
@@ -1632,7 +1613,7 @@ def vk_receiver_thread(user):
 
     # FIXME 
     log.info("sleep main loop 1")
-    time.sleep(1)
+    time.sleep(5)
 
   return True
 
