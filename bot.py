@@ -155,9 +155,6 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     return True
   elif re.search('^!стат$', cmd.lower()) is not None or \
       re.search('^!состояние$', cmd.lower()) is not None or \
-      re.search('^!чат$', cmd.lower()) is not None or \
-      re.search('^!chat$', cmd.lower()) is not None or \
-      re.search('^!room$', cmd.lower()) is not None or \
       re.search('^!stat$', cmd.lower()) is not None:
     send_message(room,"Текущее состояние: %s"%session_data_room["state"])
     if session_data_room["state"]=="dialog":
@@ -171,9 +168,11 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       re.search('^!*справка', cmd.lower()) is not None or \
       re.search('^!*help', cmd.lower()) is not None:
       answer="""!login - авторизоваться в ВК
-!logout - выйти из ВК
+!logout - выйти из ВК (пока не реализовано)
 !search - поиск диалогов в ВК (пока не реализовано)
 !dialogs - список всех ваших диалогов в ВК. В ответном сообщении Вам потребуется ввести номер диалога, чтобы начать общение в этом диалоге через матрицу.
+!rooms - список соответствий диалогов ВК и ваших комнат
+!stat - текущее состояние комнаты
       """ 
       return send_message(room,answer)
 
@@ -183,12 +182,12 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     # dialogs
     elif re.search('^!dialogs$', cmd.lower()) is not None or \
       re.search('^!диалоги$', cmd.lower()) is not None or \
-      re.search('^!чаты$', cmd.lower()) is not None or \
-      re.search('^!комнаты$', cmd.lower()) is not None or \
-      re.search('^!chats$', cmd.lower()) is not None or \
-      re.search('^!rooms$', cmd.lower()) is not None or \
       re.search('^!d$', cmd.lower()) is not None:
       return dialogs_command(user,room,cmd)
+
+    elif re.search('^!rooms$', cmd.lower()) is not None or \
+      re.search('^!комнаты$', cmd.lower()) is not None:
+      return rooms_command(user,room,cmd)
 
   elif cur_state == "wait_vk_id":
     # парсинг ссылки
@@ -464,6 +463,29 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
       log.debug(ret)
   except:
     log.error("vk_send_photo API or network error")
+    return False
+  return True
+
+def rooms_command(user,room,cmd):
+  global log
+  log.debug("=start function=")
+  global lock
+  global data
+  message="=== Список текущих соответствий диалогов ВК и комнат MATRIX: ===\n\n"
+  index=1
+  try:
+    for room_id in data["users"][user]["rooms"]:
+      item=data["users"][user]["rooms"][room_id]
+      if "cur_dialog" in item:
+        message+="%d"%index
+        message+=". " + item["cur_dialog"]["title"] + " - " + room_id + "\n"
+        index+=1
+      else:
+        log.debug("no cur_dialog for room: %s"%room_id)
+    bot_system_message(user,message)
+  except:
+    log.error("create and send list of current rooms")
+    bot_system_message(user,"Ошибка формирования списка комнат")
     return False
   return True
 
