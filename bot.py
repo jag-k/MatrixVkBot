@@ -206,6 +206,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
         return False
       send_message(room,'Вход выполнен в аккаунт {} {}!'.format(vk_user['first_name'], vk_user['last_name']))
       data["users"][user]["vk"]["vk_id"]=code
+      data["users"][user]["vk"]["first_name"]=vk_user['first_name']
+      data["users"][user]["vk"]["last_name"]=vk_user['last_name']
       data["users"][user]["rooms"][room]["state"]="listen_command"
       # сохраняем на диск:
       save_data(data)
@@ -259,7 +261,36 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     save_data(data)
     send_message(room,"Перешёл в режим команд")
     data["users"][user]["rooms"][room]["state"]="listen_command"
+  return True
 
+def update_user_info(user):
+  global log
+  global data
+  log.debug("=start function=")
+  #try:
+  vk_id=data["users"][user]["vk"]["vk_id"]
+  session = get_session(vk_id)
+  api = vk.API(session, v=VK_API_VERSION)
+  user_profile=dict(api.account.getProfileInfo(fields=[]))
+  data["users"][user]["vk"]["first_name"]=user_profile['first_name']
+  data["users"][user]["vk"]["last_name"]=user_profile['last_name']
+  dialogs=get_dialogs(vk_id)
+  # ищем свой аккаунт по ФИО (иначе пока не знаю как получить свой ID):
+  for user_id in dialogs["users"]:
+    item=dialogs["users"][user_id]
+    if item["last_name"] == data["users"][user]["vk"]["last_name"] and \
+      item["first_name"] == data["users"][user]["vk"]["first_name"]:
+      # предполагаем, что у пользователя в контактах не будет человека с таким же ФИО, как и он сам O_o:
+      data["users"][user]["vk"]["user_id"]=item["id"]
+  log.info("определил свой аккаунт как: %s %s, id:%d"%(\
+    data["users"][user]["vk"]["last_name"],\
+    data["users"][user]["vk"]["first_name"],\
+    data["users"][user]["vk"]["user_id"]\
+    ))
+  save_data(data)
+  #except:
+  #  log.error("get user profile info")
+  #  return False
   return True
 
 def find_bridge_room(user,vk_room_id):
@@ -282,7 +313,7 @@ def get_new_vk_messages(user):
   if "vk_id" not in data["users"][user]["vk"]:
     return None
   session = get_session(data["users"][user]["vk"]["vk_id"])
-  
+
   #log.debug("ts=%d, pts=%d"%(data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"]))
 
   api = vk.API(session, v=VK_POLLING_VERSION)
@@ -814,8 +845,7 @@ def load_data():
     data={}
     data["users"]={}
     save_data(data)
-  #print(json.dumps(data, indent=4, sort_keys=True,ensure_ascii=False))
-  #sys.exit()
+  #debug_dump_json_to_file("debug_data_as_json.json",data)
   return data
 
 def create_room(matrix_uid, room_name):
@@ -1186,7 +1216,7 @@ def main():
 
 def check_thread_exist(vk_id):
   global log
-  log.debug("=start function=")
+  #log.debug("=start function=")
   for th in threading.enumerate():
       if th.getName() == 'vk' + str(vk_id):
           return True
@@ -1197,7 +1227,7 @@ def start_vk_polls():
   global data
   global lock
   global log
-  log.debug("=start function=")
+  #log.debug("=start function=")
 
   started=0
   
@@ -1207,6 +1237,9 @@ def start_vk_polls():
         vk_data=data["users"][user]["vk"]
         vk_id=data["users"][user]["vk"]["vk_id"]
         if check_thread_exist(vk_id) == False:
+          # обновляем информацию о пользователе:
+          if update_user_info(user) == False:
+            log.error("update_user_info")
           t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
           t.setDaemon(True)
           t.start()
@@ -1448,6 +1481,54 @@ def send_voice_to_matrix(room,sender_name,attachment):
     log.error("send file to room")
     return False
 
+def send_notice_about_attachments(user,room,sender_name,attachments):
+  global log
+  log.debug("=start function=")
+  success_status=True
+  for attachment in attachments:
+    # Отправляем фото:
+    if attachment["type"]=="photo":
+      text="Вы отправили фото из другой клиентской программы"
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+    # Отправляем звуковой файл:
+    elif attachment["type"]=="audio":
+      text="Вы отправили аудио-файл из другой клиентской программы"
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+    # Отправляем звуковое сообщение:
+    elif attachment["type"]=="audio_message":
+      text="Вы отправили голосовое сообщение из другой клиентской программы"
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+    # Отправляем видео:
+    elif attachment["type"]=="video":
+      text="Вы отправили видео-файл из другой клиентской программы"
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+    # документы:
+    elif attachment["type"]=="doc":
+      text="Вы отправили файл из другой клиентской программы"
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+    # сообщение со стены:
+    elif attachment["type"]=="wall":
+      text="Вы отправили сообщение со стены из другой клиентской программы"
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+    else:
+      text="Вы отправили неподдерживаемый тип сообщения (%s) из другой клиентской программы"%attachment["type"]
+      if send_notice(room,text) == False:
+        log.error("send_notice(%s)"%text)
+        success_status=False
+  return success_status
+
 def send_attachments(user,room,sender_name,attachments):
   global log
   log.debug("=start function=")
@@ -1681,14 +1762,28 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   if m["out"]==1:
     log.debug("receive our message")
     owner_message=True
-    if check_equal_messages(m["text"],last_matrix_owner_message):
+    if check_equal_messages(m["text"],last_matrix_owner_message) and len(last_matrix_owner_message)>0:
       # текст такой же, какой мы отправляли последний раз в эту комнату из матрицы - не отображаем его:
       log.debug("receive from vk our text, sended from matrix - skip it")
       return True
     else:
-      # Это наше сообщение, но отправлено из другого клиента. Шлём просто текст, но через m.notice, чтобы не дилинькал клиент:
-      text="Ваша реплика:\n" + m["text"]
-      return send_notice(room,text)
+      # Это наше сообщение, но отправлено из другой клиентской программы. Шлём просто текст, но через m.notice, чтобы не дилинькал клиент:
+      if len(m["text"])!=0:
+        text="Ваша реплика:\n" + m["text"]
+        if send_notice(room,text) == False:
+          log.error("send_notice(%s)"%text)
+          bot_system_message(user,"не смог отправить копию сообщения в комнату %s от самого себя (из ВК)"%room)
+          return False
+      elif "attachments" in m:
+        if send_notice_about_attachments(user,room,sender_name,m["attachments"])==False:
+          bot_system_message(user,'Ошибка: не смог отправить уведомления об отправленных мною же вложених"')
+      if "geo" in m:
+        text="Вы отправили местоположение из другой клиентской программы"
+        if send_notice(room,text) == False:
+          log.error("send_notice(%s)"%text)
+          bot_system_message(user,"не смог отправить копию сообщения в комнату %s от самого себя (из ВК)"%room)
+          return False
+      return True
 
   if 'fwd_messages' in m:
     if sender_name!=None:
