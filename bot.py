@@ -1424,16 +1424,16 @@ def send_audio_to_matrix(room,sender_name,attachment):
 def send_voice_to_matrix(room,sender_name,attachment):
   global log
   log.debug("=start function=")
-  src=attachment["doc"]['url']
-  size=attachment["doc"]["size"]
-  file_name=attachment["doc"]["title"]
-  # TODO добавить определение типа:
+  src=attachment["audio_message"]['link_ogg']
+  duration=attachment["audio_message"]['duration']
+  file_name="голосовое_сообщение.ogg"
   mimetype="audio/ogg"
   
   audio_data=get_data_from_url(src)
   if audio_data==None:
     log.error("get voice from url: %s"%src)
     return False
+  size=len(audio_data)
     
   mxc_url=upload_file(audio_data,mimetype)
   if mxc_url == None:
@@ -1442,13 +1442,13 @@ def send_voice_to_matrix(room,sender_name,attachment):
   log.debug("send file 1")
 
   if sender_name!=None:
-    file_name=sender_name+' прислал изображение: '+file_name
+    file_name=sender_name+' прислал голосовое сообщение: '+file_name
 
-  if matrix_send_audio(room,mxc_url,file_name,mimetype,size,duration=0) == False:
+  if matrix_send_audio(room,mxc_url,file_name,mimetype,size=size,duration=duration) == False:
     log.error("send file to room")
     return False
 
-def send_attachments(room,sender_name,attachments):
+def send_attachments(user,room,sender_name,attachments):
   global log
   log.debug("=start function=")
   success_status=True
@@ -1458,25 +1458,23 @@ def send_attachments(room,sender_name,attachments):
       if send_photo_to_matrix(room,sender_name,attachment)==False:
         log.error("send_photo_to_matrix()")
         return False
-    # Отправляем фото:
+    # Отправляем звуковой файл:
     elif attachment["type"]=="audio":
       if send_audio_to_matrix(room,sender_name,attachment)==False:
         log.error("send_audio_to_matrix()")
+    # Отправляем звуковое сообщение:
+    elif attachment["type"]=="audio_message":
+      if send_voice_to_matrix(room,sender_name,attachment)==False:
+        log.error("send_voice_to_matrix()")
     # Отправляем видео:
     elif attachment["type"]=="video":
       if send_video_to_matrix(room,sender_name,attachment)==False:
         log.error("send_video_to_matrix()")
     # документы:
     elif attachment["type"]=="doc":
-      if "ext" in attachment["doc"] and attachment["doc"]["ext"]=="ogg":
-        # голосовое сообщение:
-        if send_voice_to_matrix(room,sender_name,attachment)==False:
-          log.error("send_voice_to_matrix()")
-          return False
-      else:
-        # иные прикреплённые документы:
-        if send_file_to_matrix(room,sender_name,attachment)==False:
-          log.error("send_file_to_matrix()")
+      # иные прикреплённые документы:
+      if send_file_to_matrix(room,sender_name,attachment)==False:
+        log.error("send_file_to_matrix()")
     # сообщение со стены:
     elif attachment["type"]=="wall":
       text=""
@@ -1504,6 +1502,8 @@ def send_attachments(room,sender_name,attachments):
         success_status=False
     else:
       log.error("unknown attachment type - skip. attachment type=%s"%attachment["type"])
+      bot_system_message(user,"Из ВК пришёл неизвестный тип вложения (%s) для комнаты '%s'"%(attachment["type"],get_name_of_matrix_room(room)))
+      send_message(room,"Из ВК пришёл неизвестный тип вложения (%s)"%attachment["type"])
   return success_status
 
 def get_data_from_url(url,referer=None):
@@ -1730,7 +1730,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
       send_status=False
   # отправка вложений:
   if "attachments" in m:
-    if send_attachments(room,sender_name,m["attachments"])==False:
+    if send_attachments(user,room,sender_name,m["attachments"])==False:
       send_message(room,'Ошибка: не смог отправить вложения из исходного сообщения ВК - см. логи')
       bot_system_message(user,'Ошибка: не смог отправить вложения из исходного сообщения ВК - вложения были от: %s'%sender_name)
     else:
@@ -1848,6 +1848,14 @@ def vk_receiver_thread(user):
     time.sleep(5)
 
   return True
+def get_name_of_matrix_room(room_id):
+  global client
+  global log
+  log.debug("=start function=")
+  name=client.api.get_room_name(room_id)["name"]
+  log.debug(name)
+  log.debug("name of %s = %s"%(room_id,name))
+  return name
 
 if __name__ == '__main__':
   log= logging.getLogger("MatrixVkBot")
