@@ -172,6 +172,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 !search - поиск диалогов в ВК (пока не реализовано)
 !dialogs - список всех ваших диалогов в ВК. В ответном сообщении Вам потребуется ввести номер диалога, чтобы начать общение в этом диалоге через матрицу.
 !rooms - список соответствий диалогов ВК и ваших комнат
+!delete room_id - удалить соответствение диалога ВК и комнаты MATRIX. Диалог в ВК останется и если придёт новое сообщение в нём - то бот заново создаст у вас комнту и соответстие. И вы получите сообщение из ВК.
 !stat - текущее состояние комнаты
       """ 
       return send_message(room,answer)
@@ -188,6 +189,9 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     elif re.search('^!rooms$', cmd.lower()) is not None or \
       re.search('^!комнаты$', cmd.lower()) is not None:
       return rooms_command(user,room,cmd)
+
+    elif re.search('^!delete .*', cmd.lower()) is not None:
+      return delete_room_association(user,room,cmd)
 
   elif cur_state == "wait_vk_id":
     # парсинг ссылки
@@ -466,6 +470,71 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
     return False
   return True
 
+def delete_room_association(user,room,cmd):
+  global log
+  log.debug("=start function=")
+  global lock
+  global data
+  global client
+
+  room_id=cmd.replace("!delete ","").strip()
+  if room_id in data["users"][user]["rooms"]:
+    # удаляем запись об этой комнате из данных:
+    log.info("Remove room: '%s' from data of user '%s'"%(room_id,user))
+    vk_dialog_title=""
+    if "cur_dialog" in data["users"][user]["rooms"][room_id] and \
+      "title" in data["users"][user]["rooms"][room_id]["cur_dialog"]:
+      vk_dialog_title=data["users"][user]["rooms"][room_id]["cur_dialog"]["title"]
+    del data["users"][user]["rooms"][room_id]
+    log.info("save state data on disk")
+    save_data(data)
+    bot_system_message(user,"Успешно удалил соответствие: %s - %s"%(vk_dialog_title,room_id))
+    try:
+      # удаляем всех остальных из комнаты:
+      log.info("kick all from room: '%s'"%(room_id))
+      #print("members: ",client.rooms[room_id]._members)
+      my_full_id=client.user_id
+      for item in client.rooms[room_id]._members:
+        if item.user_id!=my_full_id:
+          log.debug("kick user_id: %s"%item.user_id)
+          client.rooms[room_id].kick_user(item.user_id,"пользователь удалил эту ассоциацию диалога ВК и комнаты MATRIX")
+    except:
+      log.error("error kick users from room: '%s'"%(room_id))
+      bot_system_message(user,"Ошибка при попытке выгнать пользователей из комнаты: %s"%room_id)
+    bot_system_message(user,"Успешно выгнал всех из комнаты: %s"%room_id)
+    try:
+      log.info("try leave from room: '%s'"%(room_id))
+      response = client.api.leave_room(room_id)
+    except:
+      log.error("error leave room: '%s'"%(room_id))
+      bot_system_message(user,"Ошибка выхода из комнаты: %s"%room_id)
+      return False
+    bot_system_message(user,"Успешно вышел из комнаты: %s"%room_id)
+    try:
+      # Нужно выйти из комнаты:
+      log.info("Leave from room: '%s'"%(room_id))
+      response = client.api.leave_room(room_id)
+    except:
+      log.error("error leave room: '%s'"%(room_id))
+      bot_system_message(user,"Ошибка выхода из комнаты: %s"%room_id)
+      return False
+    bot_system_message(user,"Успешно вышел из комнаты: %s"%room_id)
+    try:
+      # И забыть её:
+      log.info("Forgot room: '%s'"%(room_id))
+      response = client.api.forget_room(room_id)
+    except:
+      log.error("error forgot room: '%s'"%(room_id))
+      bot_system_message(user,"Не смог 'забыть' (удалить из архива) комнату: %s"%room_id)
+      return False
+    bot_system_message(user,"Успешно забыл комнату: %s"%room_id)
+    log.info("success delete room association for room_id: %s"%room_id)
+  else:
+    bot_system_message(user,"Не нашёл соответствия с идентификатором комнаты: %s"%room_id)
+    bot_cancel_command(room,user)
+    return False
+  return True
+
 def rooms_command(user,room,cmd):
   global log
   log.debug("=start function=")
@@ -628,36 +697,35 @@ def close_dialog(user,room_id):
   log.debug("=start function=")
   log.debug("close_dialog()")
   log.debug("Try remove room: '%s' from data of user '%s'"%(room_id,user))
-  with lock:
-    if user in data["users"]:
-      if "rooms" in data["users"][user]:
-        if room_id in data["users"][user]["rooms"]:
-          # удаляем запись об этой комнате из данных:
-          log.info("Remove room: '%s' from data of user '%s'"%(room_id,user))
-          del data["users"][user]["rooms"][room_id]
-          log.info("save state data on disk")
-          save_data(data)
-          try:
-            # Нужно выйти из комнаты:
-            log.info("Leave from room: '%s'"%(room_id))
-            response = client.api.leave_room(room_id)
-          except:
-            log.error("error leave room: '%s'"%(room_id))
-            return None
-          try:
-            # И забыть её:
-            log.info("Forgot room: '%s'"%(room_id))
-            response = client.api.forget_room(room_id)
-          except:
-            log.error("error forgot room: '%s'"%(room_id))
-            return None
+  if user in data["users"]:
+    if "rooms" in data["users"][user]:
+      if room_id in data["users"][user]["rooms"]:
+        # удаляем запись об этой комнате из данных:
+        log.info("Remove room: '%s' from data of user '%s'"%(room_id,user))
+        del data["users"][user]["rooms"][room_id]
+        log.info("save state data on disk")
+        save_data(data)
+        try:
+          # Нужно выйти из комнаты:
+          log.info("Leave from room: '%s'"%(room_id))
+          response = client.api.leave_room(room_id)
+        except:
+          log.error("error leave room: '%s'"%(room_id))
           return None
-          log.info("success close dialog for user invite user '%s' and room '%s'"%(user,room_id))
-          return True
-        else:
-          log.warning("unknown room '%s' for user '%s'"%(room_id,user))
-    else:
-      log.warning("unknown user: '%s'"%(user))
+        try:
+          # И забыть её:
+          log.info("Forgot room: '%s'"%(room_id))
+          response = client.api.forget_room(room_id)
+        except:
+          log.error("error forgot room: '%s'"%(room_id))
+          return None
+        return None
+        log.info("success close dialog for user invite user '%s' and room '%s'"%(user,room_id))
+        return True
+      else:
+        log.warning("unknown room '%s' for user '%s'"%(room_id,user))
+  else:
+    log.warning("unknown user: '%s'"%(user))
 
   log.info("do not close dialog for user user '%s' and room '%s'"%(user,room_id))
   return False
@@ -932,8 +1000,10 @@ def on_message(event):
       elif event['content']['membership'] == "leave":
           log.info("{0} leave".format(event['sender']))
           # close room:
-          if close_dialog(event['sender'],event['room_id']) == False:
-            log.warning("close_dialog()==False")
+          with lock:
+            log.debug("success lock before process_command()")
+            if close_dialog(event['sender'],event['room_id']) == False:
+              log.warning("close_dialog()==False")
       return True
   elif event['type'] == "m.room.message":
       if event['content']['msgtype'] == "m.text":
@@ -1207,13 +1277,13 @@ def send_geo_to_matrix(room,sender_name,geo):
   send_message(room,text)
   return True
   
-  # FIXME добавить превью карты:
+  # TODO добавить превью карты:
   image_data=get_data_from_url(src)
   if image_data==None:
     log.error("get image from url: %s"%src)
     return False
 
-  # FIXME добавить определение типа:
+  # TODO добавить определение типа:
   mimetype="image/jpeg"
   size=len(image_data)
     
@@ -1264,7 +1334,7 @@ def send_photo_to_matrix(room,sender_name,attachment):
     log.error("get image from url: %s"%src)
     return False
 
-  # FIXME добавить определение типа:
+  # TODO добавить определение типа:
   mimetype="image/jpeg"
   size=len(image_data)
     
@@ -1295,7 +1365,7 @@ def send_video_to_matrix(room,sender_name,attachment):
     log.error("get image from url: %s"%src)
     return False
 
-  # FIXME добавить определение типа:
+  # TODO добавить определение типа:
   mimetype="image/jpeg"
   size=len(image_data)
     
@@ -1325,7 +1395,7 @@ def send_audio_to_matrix(room,sender_name,attachment):
   size=0
   duration=attachment["audio"]["duration"]
   file_name=attachment["audio"]["title"]+" ("+attachment["audio"]["title"]+").mp3"
-  # FIXME добавить определение типа:
+  # TODO добавить определение типа:
   mimetype="audio/mpeg"
   
   audio_data=get_data_from_url(src)
@@ -1352,7 +1422,7 @@ def send_voice_to_matrix(room,sender_name,attachment):
   src=attachment["doc"]['url']
   size=attachment["doc"]["size"]
   file_name=attachment["doc"]["title"]
-  # FIXME добавить определение типа:
+  # TODO добавить определение типа:
   mimetype="audio/ogg"
   
   audio_data=get_data_from_url(src)
