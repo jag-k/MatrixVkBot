@@ -1263,43 +1263,48 @@ def send_file_to_matrix(room,sender_name,attachment):
 def send_geo_to_matrix(room,sender_name,geo):
   global log
   log.debug("=start function=")
-  coordinates=geo["coordinates"]
-  lat=coordinates.split(' ')[0]
-  lon=coordinates.split(' ')[1]
-  place_name=geo["place"]["title"]
-  #src="http://staticmap.openstreetmap.de/staticmap.php?center=40.714728,-73.998672&zoom=14&size=865x512&maptype=mapnik"
-  geo_url="https://opentopomap.org/#marker=13/%(lat)s/%(lon)s"%{"lat":lat,"lon":lon}
+  if geo["type"]=='point':
+    coordinates=geo["coordinates"]
+    lat=coordinates["latitude"]
+    lon=coordinates["longitude"]
+    place_name=geo["place"]["title"]
 
-  if sender_name!=None:
-    text = sender_name + ' прислал местоположение (%s, %s):\n'%(lat,lon) + geo_url
-  else:
-    text = 'местоположение (%s, %s):\n'%(lat,lon) + geo_url
-  send_message(room,text)
-  return True
-  
-  # TODO добавить превью карты:
-  image_data=get_data_from_url(src)
-  if image_data==None:
-    log.error("get image from url: %s"%src)
-    return False
-
-  # TODO добавить определение типа:
-  mimetype="image/jpeg"
-  size=len(image_data)
     
-  mxc_url=upload_file(image_data,mimetype)
-  if mxc_url == None:
-    log.error("uload file to matrix server")
-    return False
-  log.debug("send file 1")
-  if "title" in attachment["photo"]:
-    file_name=attachment["photo"]["title"]
+    geo_url="https://opentopomap.org/#marker=13/%(lat)s/%(lon)s"%{"lat":lat,"lon":lon}
+
+    if sender_name!=None:
+      text = sender_name + ' прислал местоположение (%s, %s):\n'%(lat,lon) + geo_url
+    else:
+      text = 'местоположение (%s, %s):\n'%(lat,lon) + geo_url
+    send_message(room,text)
+    return True
+    
+    # TODO добавить превью карты (на данный момент этот сайт не работает):
+    preview_src="https://staticmap.openstreetmap.de/staticmap.php?center=%(lat)f,%(lon)f&zoom=14&size=400x300&maptype=mapnik"%{"lat":lat,"lon":lon}
+    log.debug("try get static map preview from url: %s"%preview_src)
+    image_data=get_data_from_url(preview_src,referer="osm.org")
+    if image_data==None:
+      log.error("get image from url: %s"%src)
+      return False
+
+    # TODO добавить определение типа:
+    mimetype="image/png"
+    size=len(image_data)
+      
+    mxc_url=upload_file(image_data,mimetype)
+    if mxc_url == None:
+      log.error("uload file to matrix server")
+      return False
+    log.debug("send file 1")
+    file_name=place_name+".png"
+
+    size=len(image_data)
+    if matrix_send_image(room,mxc_url,file_name,mimetype,size=size) == False:
+      log.error("send file to room")
+      return False
   else:
-    file_name=get_name_from_url(src)
-
-
-  if matrix_send_image(room,mxc_url,file_name,height,width,mimetype,size) == False:
-    log.error("send file to room")
+    bot_system_message(user,"получен неизвестный тип гео-данных - прпоускаю")
+    send_message(room,"получен неизвестный тип гео-данных - прпоускаю")
     return False
 
 def send_photo_to_matrix(room,sender_name,attachment):
@@ -1351,7 +1356,7 @@ def send_photo_to_matrix(room,sender_name,attachment):
   if sender_name!=None:
     file_name=sender_name+' прислал изображение: '+file_name
 
-  if matrix_send_image(room,mxc_url,file_name,height,width,mimetype,size) == False:
+  if matrix_send_image(room,mxc_url,file_name,mimetype,height,width,size) == False:
     log.error("send file to room")
     return False
 
@@ -1382,7 +1387,7 @@ def send_video_to_matrix(room,sender_name,attachment):
   if sender_name!=None:
     file_name=sender_name+' прислал изображение: '+file_name
 
-  if matrix_send_image(room,mxc_url,file_name,height=0,width=0,mimetype=mimetype,size=size) == False:
+  if matrix_send_image(room,mxc_url,file_name,mimetype=mimetype,height=0,width=0,size=size) == False:
     log.error("send file to room")
     return False
   video_url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
@@ -1501,11 +1506,14 @@ def send_attachments(room,sender_name,attachments):
       log.error("unknown attachment type - skip. attachment type=%s"%attachment["type"])
   return success_status
 
-def get_data_from_url(url):
+def get_data_from_url(url,referer=None):
   global log
   log.debug("=start function=")
   try:
-    response = requests.get(url, stream=True)
+    if referer!=None:
+      response = requests.get(url, stream=True,headers=dict(referer = referer))
+    else:
+      response = requests.get(url, stream=True)
     data = response.content      # a `bytes` object
   except:
     log.error("fetch data from url: %s"%url)
@@ -1548,7 +1556,7 @@ def matrix_send_audio(room_id,url,name,mimetype="audio/mpeg",size=0,duration=0):
       return False
   return True
 
-def matrix_send_image(room_id,url,name,height,width,mimetype,size):
+def matrix_send_image(room_id,url,name,mimetype,height=None,width=None,size=None):
   global log
   global client
   log.debug("=start function=")
@@ -1566,9 +1574,12 @@ def matrix_send_image(room_id,url,name,height,width,mimetype,size):
       return False
   imageinfo={}
   imageinfo["mimetype"]=mimetype
-  imageinfo["size"]=size
-  imageinfo["h"]=height
-  imageinfo["w"]=width
+  if size!=None:
+    imageinfo["size"]=size
+  if height!=None:
+    imageinfo["h"]=height
+  if width!=None:
+    imageinfo["w"]=width
   try:
     log.debug("send file 2")
     ret=room.send_image(url,name,imageinfo=imageinfo)
