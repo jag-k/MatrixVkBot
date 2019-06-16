@@ -1293,6 +1293,55 @@ def send_file_to_matrix(room,sender_name,attachment):
     log.error("send file to room")
     return False
 
+def create_reply_forward_text_for_matrix(user,fwd):
+  global log
+  global data
+  fwd_uid=fwd["from_id"]
+  fwd_text=fwd["text"]
+  user_profile=get_user_profile_by_uid(user,fwd_uid)
+  fwd_user_name=fwd_uid
+  if user_profile!=None:
+    fwd_user_name=user_profile["first_name"] + " " + user_profile["last_name"]
+  text="<blockquote>\n<p>В ответ на реплику от <strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n" % {"fwd_user":fwd_user_name, "fwd_text":fwd_text}
+  # если это ответ на вложения, то добавляем их как ссылки:
+  descr="вложение"
+  if "attachments" in fwd:
+    for attachment in fwd["attachments"]:
+      url=None
+      if attachment['type']=="photo":
+        descr="фото"
+        photo_data=get_photo_url_from_photo_attachment(attachment)
+        if photo_data!=None:
+          url=photo_data["url"]
+      elif attachment['type']=="video":
+        descr="видео"
+        url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
+      elif attachment['type']=="audio_message":
+        descr="голосовое сообщение"
+        url=attachment["audio_message"]['link_ogg']
+      elif attachment['type']=="audio":
+        descr="аудио-файл"
+        url=attachment["audio"]['url']
+      elif attachment['type']=="doc":
+        descr="документ"
+        url=attachment["doc"]['url']
+      if url!=None:
+        text+="<p>%(descr)s: %(url)s</p>\n" % {"url":url,"descr":descr}
+  if "geo" in fwd:
+    geo=fwd["geo"]
+    if geo["type"]=='point':
+      coordinates=geo["coordinates"]
+      lat=coordinates["latitude"]
+      lon=coordinates["longitude"]
+      place_name=geo["place"]["title"]
+      geo_url="https://opentopomap.org/#marker=13/%(lat)s/%(lon)s"%{"lat":lat,"lon":lon}
+      text+="<p>местоположение: %(geo_url)s (%(place_name)s)</p>\n" % {"geo_url":geo_url,"place_name":place_name}
+    else:
+      text+="<p>неизвестный тип местоположения</p>\n"
+  text+="</blockquote>\n"
+  return text
+
+
 def send_geo_to_matrix(room,sender_name,geo):
   global log
   log.debug("=start function=")
@@ -1343,14 +1392,14 @@ def send_geo_to_matrix(room,sender_name,geo):
 def send_photo_to_matrix(room,sender_name,attachment):
   global log
   log.debug("=start function=")
-  data=get_photo_url_from_photo_attachment(attachment)
-  if data == None:
+  photo_data=get_photo_url_from_photo_attachment(attachment)
+  if photo_data == None:
     log.error("get src for photo")
     log.error(attachment["photo"])
     return False
-  src=data["url"]
-  height=data["height"]
-  width=data["width"]
+  src=photo_data["url"]
+  height=photo_data["height"]
+  width=photo_data["width"]
   
   image_data=get_data_from_url(src)
   if image_data==None:
@@ -1754,23 +1803,23 @@ def get_photo_url_from_photo_attachment(attachment):
   width=0
   height=0
   src=None
-  data=None
+  data_item=None
   for item in attachment["photo"]["sizes"]:
     if item["width"] > width:
       width=item["width"]
       height=item["height"]
       src=item["url"]
-      data=item
+      data_item=item
       continue
     if item["height"] > height:
       width=item["width"]
       height=item["height"]
       src=item["url"]
-      data=item
-  if data == None:
+      data_item=item
+  if data_item == None:
     log.error("get src for photo")
     log.error(attachment["photo"])
-  return data
+  return data_item
 
 def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   global data
@@ -1814,44 +1863,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
       text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
     # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
     for fwd in m['fwd_messages']:
-      fwd_uid=fwd["from_id"]
-      fwd_text=fwd["text"]
-      user_profile=get_user_profile_by_uid(user,fwd_uid)
-      fwd_user_name=fwd_uid
-      if user_profile!=None:
-        fwd_user_name=user_profile["first_name"] + " " + user_profile["last_name"]
-      # TODO получить ФИО авторов перенаправляемых сообщений
-      text+="<blockquote>\n<p>В ответ на реплику от <strong>%(fwd_user)s</strong>:</p><p>%(fwd_text)s</p>\n" % {"fwd_user":fwd_user_name, "fwd_text":fwd_text}
-      # если это ответ на вложения, то добавляем их как ссылки:
-      if "attachments" in fwd:
-        for attachment in fwd["attachments"]:
-          url=None
-          if attachment['type']=="photo":
-            data=get_photo_url_from_photo_attachment(attachment)
-            if data!=None:
-              url=data["url"]
-          elif attachment['type']=="video":
-            url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
-          elif attachment['type']=="audio_message":
-            url=attachment["audio_message"]['link_ogg']
-          elif attachment['type']=="audio":
-            url=attachment["audio"]['url']
-          elif attachment['type']=="doc":
-            url=attachment["doc"]['url']
-          if url!=None:
-            text+="<p>вложение: %(url)s</p>\n" % {"url":url}
-      if "geo" in fwd:
-        geo=fwd["geo"]
-        if geo["type"]=='point':
-          coordinates=geo["coordinates"]
-          lat=coordinates["latitude"]
-          lon=coordinates["longitude"]
-          place_name=geo["place"]["title"]
-          geo_url="https://opentopomap.org/#marker=13/%(lat)s/%(lon)s"%{"lat":lat,"lon":lon}
-          text+="<p>местоположение: %(geo_url)s (%(place_name)s)</p>\n" % {"geo_url":geo_url,"place_name":place_name}
-        else:
-          text+="<p>неизвестный тип местоположения</p>\n"
-      text+="</blockquote>\n"
+      text+=create_reply_forward_text_for_matrix(user,fwd)
     text+="<p>%s</p>\n" % m["text"]
   else:
     if sender_name!=None:
