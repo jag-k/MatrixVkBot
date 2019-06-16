@@ -651,7 +651,7 @@ def delete_room_association(user,room,cmd):
     try:
       # удаляем всех остальных из комнаты:
       log.info("kick all from room: '%s'"%(room_id))
-      #print("members: ",client.rooms[room_id]._members)
+      log.debug("members: ",client.rooms[room_id]._members)
       my_full_id=client.user_id
       for item in client.rooms[room_id]._members:
         if item.user_id!=my_full_id:
@@ -661,6 +661,7 @@ def delete_room_association(user,room,cmd):
       log.error("error kick users from room: '%s'"%(room_id))
       bot_system_message(user,"Ошибка при попытке выгнать пользователей из комнаты: %s"%room_id)
     bot_system_message(user,"Успешно выгнал всех из комнаты: %s"%room_id)
+    time.sleep(3)
     try:
       log.info("try leave from room: '%s'"%(room_id))
       response = client.api.leave_room(room_id)
