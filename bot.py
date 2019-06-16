@@ -1858,18 +1858,29 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
           return False
       return True
 
-  if 'fwd_messages' in m:
+  log.debug("1")
+  if 'fwd_messages' in m and m['fwd_messages']!=[]:
+    log.debug("1")
     if sender_name!=None:
       text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
     # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
     for fwd in m['fwd_messages']:
       text+=create_reply_forward_text_for_matrix(user,fwd)
     text+="<p>%s</p>\n" % m["text"]
+  elif 'reply_message' in m and m['reply_message']!=[]:
+    log.debug("1")
+    if sender_name!=None:
+      text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
+    # это ответ на сообщение - добавляем текст сообщения, на который дан ответ:
+    text+=create_reply_forward_text_for_matrix(user,m['reply_message'])
+    text+="<p>%s</p>\n" % m["text"]
   else:
+    log.debug("1")
     if sender_name!=None:
       text="<strong>%s</strong>: %s"%(sender_name,m["text"])
     else:
       text=m["text"]
+  log.debug("1")
 
   if len(text)>0:
     if send_html(room,text) == True:
