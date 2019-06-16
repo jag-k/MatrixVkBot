@@ -44,7 +44,7 @@ vk_threads = {}
 vk_dialogs = {}
 
 VK_API_VERSION = '5.95'
-VK_POLLING_VERSION = '5.95'
+VK_POLLING_VERSION = '3'
 
 currentchat = {}
 
@@ -303,6 +303,136 @@ def find_bridge_room(user,vk_room_id):
       return room;
   return None
 
+def get_new_vk_messages_v2(user):
+  global data
+  global lock
+  global log
+  log.debug("=start function=")
+  if "vk" not in data["users"][user]:
+    return None
+  if "vk_id" not in data["users"][user]["vk"]:
+    return None
+  server=""
+  key=""
+  session=""
+  ts=0
+  with lock:
+    if "server" in data["users"][user]["vk"]:
+      server=data["users"][user]["vk"]["server"]
+    if "ts_polling" in data["users"][user]["vk"]:
+      ts=data["users"][user]["vk"]["ts_polling"]
+    if "key" in data["users"][user]["vk"]:
+      key=data["users"][user]["vk"]["key"]
+    if "session" in data["users"][user]["vk"]:
+      session=data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["session"]
+  while True:
+    try:
+      if server=="" or key=="":
+        log.warning('Need update server data')
+        raise Exception('Need update server data')
+      log.debug("get polling with ts=%d"%ts)
+      url="https://%(server)s?act=a_check&key=%(key)s&ts=%(ts)s&wait=25&mode=2&version=%(VK_POLLING_VERSION)s"%\
+        {\
+          "ts":ts,\
+          "key":key,\
+          "server":server,\
+          "VK_POLLING_VERSION":VK_POLLING_VERSION\
+        }
+      r = requests.post(url)
+      log.debug("requests.post return: %s"%r.text)
+      ret=json.loads(r.text)
+      if "updates" not in ret:
+        log.warning("'No 'updates' in ret'")
+        raise Exception("No 'updates' in ret")
+      ts=ret["ts"]
+      with lock:
+        data["users"][user]["vk"]["ts_polling"]=ts
+      #log.debug("ret=")
+      #log.debug(json.dumps(ret, indent=4, sort_keys=True,ensure_ascii=False))
+    except:
+      log.warning("error get event updates - try update session info")
+      session = get_session(data["users"][user]["vk"]["vk_id"])
+      log.debug("session=")
+      log.debug(session)
+      api = vk.API(session, v=VK_API_VERSION)
+      response = api.messages.getLongPollServer(need_pts=1,v=VK_API_VERSION,lp_version=VK_POLLING_VERSION)
+      ts=response["ts"]
+      key=response["key"]
+      server=response["server"]
+      with lock:
+        #data["users"][user]["vk"]["ts"]=ts
+        data["users"][user]["vk"]["server"]=server
+        data["users"][user]["vk"]["key"]=key
+        data["users"][user]["vk"]["session"]=session
+        data["users"][user]["vk"]["ts_polling"]=ts
+      save_data(data)
+      continue
+
+    # ищем нужные нам события (новые сообщения), типы всех событий описаны вот тут: https://vk.com/dev/using_longpoll_2
+    # 4 - Добавление нового сообщения. 
+    # 5 - Редактирование сообщения. 
+    # 51 - Один из параметров (состав, тема) беседы $chat_id были изменены. $self — 1 или 0 (вызваны ли изменения самим пользователем). 
+    # 52 - Изменение информации чата $peer_id с типом $type_id, $info — дополнительная информация об изменениях, зависит от типа события.
+    ts=ret["ts"]
+    new_events=False
+    for update in ret["updates"]:
+      if update[0]==4 \
+        or update[0]==5 \
+        or update[0]==51 \
+        or update[0]==52:
+        new_events=True
+        log.info("getting info about new events - try get events...")
+        break
+    if new_events:
+      # выходим из цикла ожидания событий:
+      break
+
+  # получаем данные событий:
+  log.debug("session=")
+  log.debug(session)
+  session = get_session(data["users"][user]["vk"]["vk_id"])
+  log.debug("session=")
+  log.debug(session)
+
+  api = vk.API(session, v=VK_API_VERSION)
+  try:
+    #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
+    #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"],"wait":25})
+    #new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+    new = api.messages.getLongPollHistory(
+        ts=data["users"][user]["vk"]["ts"],\
+        pts=data["users"][user]["vk"]["pts"],\
+        lp_version=VK_POLLING_VERSION\
+      )
+  except vk.api.VkAPIError:
+    timeout = 3
+    log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
+    time.sleep(timeout)
+    with lock:
+      data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+    new = api.messages.getLongPollHistory(
+        ts=data["users"][user]["vk"]["ts"],\
+        pts=data["users"][user]["vk"]["pts"],\
+        lp_version=VK_POLLING_VERSION\
+      )
+
+  log.debug("New data from VK:")
+  log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
+
+  msgs = new['messages']
+  with lock:
+    data["users"][user]["vk"]["pts"] = new["new_pts"]
+  count = msgs["count"]
+
+  res = None
+  if count == 0:
+    pass
+  else:
+    res={}
+    res["messages"] = msgs["items"]
+    res["profiles"] = new["profiles"]
+  return res
+
 def get_new_vk_messages(user):
   global data
   global lock
@@ -316,7 +446,7 @@ def get_new_vk_messages(user):
 
   #log.debug("ts=%d, pts=%d"%(data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"]))
 
-  api = vk.API(session, v=VK_POLLING_VERSION)
+  api = vk.API(session, v=VK_API_VERSION)
   try:
     ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
     #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"],"wait":25})
@@ -365,10 +495,8 @@ def get_session(token):
 def get_tses(session):
   global log
   log.debug("=start function=")
-  api = vk.API(session, v=VK_POLLING_VERSION)
+  api = vk.API(session, v=VK_API_VERSION)
   ts = api.messages.getLongPollServer(need_pts=1)
-  print("ts=",ts)
-#    sys.exit()
   return ts['ts'], ts['pts']
 
 def verifycode(code):
@@ -1925,7 +2053,7 @@ def vk_receiver_thread(user):
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
 
   while True:
-    res=get_new_vk_messages(user)
+    res=get_new_vk_messages_v2(user)
     if res != None:
       for m in res["messages"]:
         log.debug("Receive message from VK:")
@@ -2005,8 +2133,8 @@ def vk_receiver_thread(user):
             log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
     # FIXME 
-    log.info("sleep main loop 1")
-    time.sleep(5)
+    #log.info("sleep main loop 1")
+    #time.sleep(5)
 
   return True
 def get_name_of_matrix_room(room_id):
