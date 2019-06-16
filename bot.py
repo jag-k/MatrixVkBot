@@ -663,16 +663,8 @@ def delete_room_association(user,room,cmd):
     bot_system_message(user,"Успешно выгнал всех из комнаты: %s"%room_id)
     time.sleep(3)
     try:
-      log.info("try leave from room: '%s'"%(room_id))
-      response = client.api.leave_room(room_id)
-    except:
-      log.error("error leave room: '%s'"%(room_id))
-      bot_system_message(user,"Ошибка выхода из комнаты: %s"%room_id)
-      return False
-    bot_system_message(user,"Успешно вышел из комнаты: %s"%room_id)
-    try:
       # Нужно выйти из комнаты:
-      log.info("Leave from room: '%s'"%(room_id))
+      log.info("try leave from room: '%s'"%(room_id))
       response = client.api.leave_room(room_id)
     except:
       log.error("error leave room: '%s'"%(room_id))
