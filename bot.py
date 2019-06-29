@@ -1784,7 +1784,7 @@ def send_attachments(user,room,sender_name,attachments):
             if data_item!=None:
               url=data_item["url"]
             else:
-              url="ошибка получения url"
+              url=None
               bot_system_message(user,"при разборе вложений 'photo' в сообщении со стены - произошли ошибки")
           elif attachment['type']=="video":
             url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
@@ -1801,6 +1801,29 @@ def send_attachments(user,room,sender_name,attachments):
         log.error("send_html()")
         bot_system_message(user,"Не смог отправить сообщение в комнату: '%s', сообщение было: %s"%(room,text))
         success_status=False
+    # сообщение со стены:
+    elif attachment["type"]=="link":
+      text=""
+      if sender_name!=None:
+        text+="<p><strong>%(sender_name)s</strong>:</p>\n"%{"sender_name":sender_name}
+      text+="<blockquote>\n<p>Пересланная ссылка:</p>\n<p>%(title)s</p>\n" % {"title":attachment["link"]["title"]}
+      text+=attachment["link"]["url"]
+      text+="\n"
+      if "photo" in attachment["link"]:
+        data_item=get_photo_url_from_photo_attachment(attachment["link"])
+        if data_item!=None:
+          photo_url=data_item["url"]
+        else:
+          photo_url=None
+          bot_system_message(user,"при разборе вложений 'photo' во вложении 'link' - произошли ошибки")
+        if photo_url!=None:
+          text+="<p>вложение: %(url)s</p>\n" % {"url":photo_url}
+      text+="</blockquote>\n"
+      if send_html(room,text)==False:
+        log.error("send_html()")
+        bot_system_message(user,"Не смог отправить сообщение в комнату: '%s', сообщение было: %s"%(room,text))
+        success_status=False
+
     else:
       log.error("unknown attachment type - skip. attachment type=%s"%attachment["type"])
       bot_system_message(user,"Из ВК пришёл неизвестный тип вложения (%s) для комнаты '%s'"%(attachment["type"],get_name_of_matrix_room(room)))
