@@ -152,6 +152,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       re.search('^!cancel$', cmd.lower()) is not None:
     data["users"][user]["rooms"][room]["state"]="listen_command"
     send_message(room,'Отменил текущий режим (%s) и перешёл в начальный режим ожидания команд. Жду команд.'%session_data_room["state"])
+    # сохраняем на диск:
+    save_data(data)
     return True
   elif re.search('^!стат$', cmd.lower()) is not None or \
       re.search('^!состояние$', cmd.lower()) is not None or \
@@ -159,6 +161,15 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     send_message(room,"Текущее состояние: %s"%session_data_room["state"])
     if session_data_room["state"]=="dialog":
       send_message(room,'Текущая комната: "%s"'%session_data_room["cur_dialog"]["title"])
+    return True
+  elif re.search('^!ping$', cmd.lower()) is not None:
+    message="==== Состояние связи с VK: ====\n"
+    message+="Состояние соединения: %s\n"%data["users"][user]["vk"]["connection_status"]
+    message+="Описание состояния соединения: %s\n"%data["users"][user]["vk"]["connection_status_descr"]
+
+    delta_ts = int(time.time())-data["users"][user]["vk"]["ts_check_poll"]
+    message+="Время прошедшее с предыдущего опроса событий в ВК: %d сек.\n"%delta_ts
+    send_message(room,message)
     return True
 
   if cur_state == "listen_command":
@@ -174,6 +185,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 !rooms - список соответствий диалогов ВК и ваших комнат
 !delete room_id - удалить соответствение диалога ВК и комнаты MATRIX. Диалог в ВК останется и если придёт новое сообщение в нём - то бот заново создаст у вас комнту и соответстие. И вы получите сообщение из ВК.
 !stat - текущее состояние комнаты
+!ping - текущее состояние соединения с ВК
       """ 
       return send_message(room,answer)
 
@@ -347,6 +359,7 @@ def get_new_vk_messages_v2(user):
       ts=ret["ts"]
       with lock:
         data["users"][user]["vk"]["ts_polling"]=ts
+        data["users"][user]["vk"]["ts_check_poll"]=int(time.time())
       #log.debug("ret=")
       #log.debug(json.dumps(ret, indent=4, sort_keys=True,ensure_ascii=False))
     except:
@@ -1275,7 +1288,7 @@ def exception_handler(e):
   global client
   global log
   log.debug("=start function=")
-  log.error("main listener thread except. He must retrying...")
+  log.error("main MATRIX listener thread except. He must retrying...")
   print(e)
   log.info("wait 30 second before retrying...")
   time.sleep(30)
@@ -1333,7 +1346,52 @@ def main():
     if num > 0:
       log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
     time.sleep(1)
+    check_bot_status()
+
   log.info("exit main loop")
+
+def check_bot_status():
+  global client
+  global data
+  global log
+  global lock
+  
+  change_flag=False
+  cur_ts = int(time.time())
+
+  for user in data["users"]:
+    user_data=data["users"][user]
+
+    # vk connection status:
+    if "vk" in user_data:
+      prev_connection_status="unknown"
+      if "connection_status" in data["users"][user]["vk"]:
+        prev_connection_status=data["users"][user]["vk"]["connection_status"]
+      if "ts_check_poll" in user_data["vk"]:
+        ts_check_poll=0
+        with lock:
+          ts_check_poll=user_data["vk"]["ts_check_poll"] 
+        delta=cur_ts-ts_check_poll
+        log.debug("delta=%d"%delta)
+        if delta > 600:
+          with lock:
+            data["users"][user]["vk"]["connection_status"]="error"
+            data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK"
+            data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
+        else:
+          with lock:
+            data["users"][user]["vk"]["connection_status"]="success"
+            data["users"][user]["vk"]["connection_status_descr"]="нет ошибок"
+            data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
+      if "connection_status" in data["users"][user]["vk"]:
+        if prev_connection_status!=data["users"][user]["vk"]["connection_status"]:
+          change_flag=True
+          bot_system_message(user,"Изменён статус соединения с VK на '%s', детальное описание: '%s'"%(\
+            data["users"][user]["vk"]["connection_status"],\
+            data["users"][user]["vk"]["connection_status_descr"]\
+          ))
+
+  return change_flag
 
 def check_thread_exist(vk_id):
   global log
@@ -1722,11 +1780,18 @@ def send_attachments(user,room,sender_name,attachments):
         for attachment in attachment["wall"]["attachments"]:
           url=None
           if attachment['type']=="photo":
-            url=attachment["photo"]["src"]
+            data_item=get_photo_url_from_photo_attachment(attachment)
+            if data_item!=None:
+              url=data_item["url"]
+            else:
+              url="ошибка получения url"
+              bot_system_message(user,"при разборе вложений 'photo' в сообщении со стены - произошли ошибки")
           elif attachment['type']=="video":
-            url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["vid"]}
+            url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
           elif attachment['type']=="audio":
             url=attachment["audio"]['url']
+          elif attachment['type']=="audio_message":
+            url=attachment["audio_message"]['link_ogg']
           elif attachment['type']=="doc":
             url=attachment["doc"]['url']
           if url!=None:
