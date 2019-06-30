@@ -121,6 +121,19 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           log.error("error vk_send_video() for user %s"%user)
           send_message(room,"не смог отправить видео в ВК - ошибка АПИ")
           return False
+      elif re.search("^audio",file_type)!=None:
+        # Отправка звукового файла из матрицы:
+        audio_data=get_file(file_url)
+        if audio_data==None:
+          log.error("error get file by mxurl=%s"%file_url)
+          bot_system_message(user,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
+          return False
+        if vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,audio_data,dialog["type"]) == False:
+          log.error("error vk_send_doc() for user %s"%user)
+          send_message(room,"не смог отправить аудио в ВК - ошибка АПИ")
+          return False
+
       else:
         # Отправка простого файла из матрицы:
         doc_data=get_file(file_url)
@@ -554,6 +567,38 @@ def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
     log.debug("api.video.save return:")
     log.debug(save_response)
     url = save_response['upload_url']
+    files = {'video_file': (name,video_data,'multipart/form-data')}
+    r = requests.post(url, files=files)
+    log.debug("requests.post return: %s"%r.text)
+    ret=json.loads(r.text)
+    attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
+    if chat_type!="user":
+      ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
+      log.debug("api.messages.send return:")
+      log.debug(ret)
+    else:
+      ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
+      log.debug("api.messages.send return:")
+      log.debug(ret)
+  except:
+    log.error("vk_send_video API or network error")
+    return False
+  return True
+
+# TODO доделать отправку аудио
+def vk_send_audio(vk_id, chat_id, name, audio_data, chat_type="user"):
+  global log
+  log.debug("=start function=")
+  random_id=random.randint(0,4294967296)
+  try:
+    session = get_session(vk_id)
+    api = vk.API(session, v=VK_API_VERSION)
+    # получаем адрес загрузки:
+    save_response=api.video.save(name=name)
+    log.debug("api.video.save return:")
+    log.debug(save_response)
+    url = save_response['upload_url']
+
     files = {'video_file': (name,video_data,'multipart/form-data')}
     r = requests.post(url, files=files)
     log.debug("requests.post return: %s"%r.text)
@@ -1210,6 +1255,19 @@ def on_message(event):
           file_url=event['content']['url']
           if "fileinfo" in event['content']['info']:
             file_type=event['content']['info']['fileinfo']['mimetype']
+          else:
+            file_type=event['content']['info']['mimetype']
+        except:
+          log.error("bad formated event with file data - skip")
+          log.error(event)
+          return False
+      elif event['content']['msgtype'] == "m.audio":
+        try:
+          file_url=event['content']['url']
+          if "fileinfo" in event['content']['info']:
+            file_type=event['content']['info']['fileinfo']['mimetype']
+          elif "audioinfo" in event['content']['info']:
+            file_type=event['content']['info']['audioinfo']['mimetype']
           else:
             file_type=event['content']['info']['mimetype']
         except:
