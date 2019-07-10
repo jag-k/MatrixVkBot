@@ -1445,7 +1445,6 @@ def check_bot_status():
             # Задача на переподключение:
             data["users"][user]["vk"]["exit"]=True
         else:
-          reconnect_success=False
           with lock:
             data["users"][user]["vk"]["connection_status"]="success"
             data["users"][user]["vk"]["connection_status_descr"]="нет ошибок"
@@ -2286,6 +2285,7 @@ def vk_receiver_thread(user):
       exit_flag=data["users"][user]["vk"]["exit"]
       if exit_flag==True:
         data["users"][user]["vk"]["exit"]=False
+    log.debug("thread: exit_flag=%d"%int(exit_flag))
     if exit_flag==True:
       log.info("get command to close thread for user %s - exit from thread..."%user)
       bot_system_message(user,"Завершаю процесс получения сообщений из ВК...")
