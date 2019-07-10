@@ -2206,13 +2206,6 @@ def vk_receiver_thread(user):
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
 
   while True:
-    with lock:
-      exit_flag=data["users"][user]["vk"]["exit"]
-      if exit_flag==True:
-        data["users"][user]["vk"]["exit"]=False
-    if exit_flag==True:
-      log.info("get command to close thread for user %s - exit from thread..."%user)
-      break
     res=get_new_vk_messages_v2(user)
     if res != None:
       for m in res["messages"]:
@@ -2292,11 +2285,21 @@ def vk_receiver_thread(user):
           if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
             log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
+    # Проверка на необходимость выйти:
+    with lock:
+      exit_flag=data["users"][user]["vk"]["exit"]
+      if exit_flag==True:
+        data["users"][user]["vk"]["exit"]=False
+    if exit_flag==True:
+      log.info("get command to close thread for user %s - exit from thread..."%user)
+      time.sleep(20)
+      break
+
     # FIXME 
     #log.info("sleep main loop 1")
     #time.sleep(5)
-
   return True
+
 def get_name_of_matrix_room(room_id):
   global client
   global log
