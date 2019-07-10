@@ -184,6 +184,11 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     message+="Время прошедшее с предыдущего опроса событий в ВК: %d сек.\n"%delta_ts
     send_message(room,message)
     return True
+  elif re.search('^!reconnect$', cmd.lower()) is not None:
+    data["users"][user]["vk"]["exit"]=True
+    message="Послал команду на переподключение к ВК.\n"
+    send_message(room,message)
+    return True
 
   if cur_state == "listen_command":
     if re.search('^!*\?$', cmd.lower()) is not None or \
@@ -198,6 +203,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 !rooms - список соответствий диалогов ВК и ваших комнат
 !delete room_id - удалить соответствение диалога ВК и комнаты MATRIX. Диалог в ВК останется и если придёт новое сообщение в нём - то бот заново создаст у вас комнту и соответстие. И вы получите сообщение из ВК.
 !stat - текущее состояние комнаты
+!reconnect - переподключиться к ВК
 !ping - текущее состояние соединения с ВК
       """ 
       return send_message(room,answer)
@@ -1434,13 +1440,21 @@ def check_bot_status():
         if delta > 600:
           with lock:
             data["users"][user]["vk"]["connection_status"]="error"
-            data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK"
+            data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK - пробую переподключиться"
             data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
+            # Задача на переподключение:
+            data["users"][user]["vk"]["exit"]=True
         else:
+          reconnect_success=False
           with lock:
             data["users"][user]["vk"]["connection_status"]="success"
             data["users"][user]["vk"]["connection_status_descr"]="нет ошибок"
             data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
+            if data["users"][user]["vk"]["exit"]==True:
+              data["users"][user]["vk"]["exit"]=False
+              reconnect_success=True
+          if reconnect_success == True:
+            bot_system_message(user,"Успешно переподключился к ВК")
       if "connection_status" in data["users"][user]["vk"]:
         if prev_connection_status!=data["users"][user]["vk"]["connection_status"]:
           change_flag=True
@@ -2192,6 +2206,13 @@ def vk_receiver_thread(user):
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
 
   while True:
+    with lock:
+      exit_flag=data["users"][user]["vk"]["exit"]
+      if exit_flag==True:
+        data["users"][user]["vk"]["exit"]=False
+    if exit_flag==True:
+      log.info("get command to close thread for user %s - exit from thread..."%user)
+      break
     res=get_new_vk_messages_v2(user)
     if res != None:
       for m in res["messages"]:
