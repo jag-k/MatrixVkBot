@@ -1450,11 +1450,6 @@ def check_bot_status():
             data["users"][user]["vk"]["connection_status"]="success"
             data["users"][user]["vk"]["connection_status_descr"]="нет ошибок"
             data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
-            if data["users"][user]["vk"]["exit"]==True:
-              data["users"][user]["vk"]["exit"]=False
-              reconnect_success=True
-          if reconnect_success == True:
-            bot_system_message(user,"Успешно переподключился к ВК")
       if "connection_status" in data["users"][user]["vk"]:
         if prev_connection_status!=data["users"][user]["vk"]["connection_status"]:
           change_flag=True
@@ -1491,6 +1486,7 @@ def start_vk_polls():
           # обновляем информацию о пользователе:
           if update_user_info(user) == False:
             log.error("update_user_info")
+          bot_system_message(user,"Запускаю процесс получения сообщений из ВК...")
           t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
           t.setDaemon(True)
           t.start()
@@ -2292,7 +2288,7 @@ def vk_receiver_thread(user):
         data["users"][user]["vk"]["exit"]=False
     if exit_flag==True:
       log.info("get command to close thread for user %s - exit from thread..."%user)
-      time.sleep(20)
+      bot_system_message(user,"Завершаю процесс получения сообщений из ВК...")
       break
 
     # FIXME 
