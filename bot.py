@@ -1451,7 +1451,9 @@ def check_bot_status():
             data["users"][user]["vk"]["connection_status"]="error"
             data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK - пробую переподключиться"
             data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
-            # Задача на переподключение:
+          # Задача на переподключение:
+          time.sleep(240) # ждём на всякий случай:
+          with lock:
             data["users"][user]["vk"]["exit"]=True
         else:
           with lock:
