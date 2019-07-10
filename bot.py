@@ -356,6 +356,7 @@ def get_new_vk_messages_v2(user):
       key=data["users"][user]["vk"]["key"]
     if "session" in data["users"][user]["vk"]:
       session=data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["session"]
+  exit_flag=False
   while True:
     try:
       if server=="" or key=="":
@@ -418,6 +419,14 @@ def get_new_vk_messages_v2(user):
     if new_events:
       # выходим из цикла ожидания событий:
       break
+
+    # Проверка на необходимость выйти из потока:
+    with lock:
+      exit_flag=data["users"][user]["vk"]["exit"]
+    log.debug("thread: exit_flag=%d"%int(exit_flag))
+    if exit_flag==True:
+      log.info("get command to close thread for user %s - exit from thread..."%user)
+      return None
 
   # получаем данные событий:
   log.debug("session=")
