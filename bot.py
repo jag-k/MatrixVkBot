@@ -1491,6 +1491,7 @@ def start_vk_polls():
         vk_data=data["users"][user]["vk"]
         vk_id=data["users"][user]["vk"]["vk_id"]
         if check_thread_exist(vk_id) == False:
+          log.info("no thread for user %s - try start new tread"%user)
           # обновляем информацию о пользователе:
           if update_user_info(user) == False:
             log.error("update_user_info")
