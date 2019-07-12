@@ -1418,7 +1418,7 @@ def main():
     num=start_vk_polls()
     if num > 0:
       log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
-    time.sleep(1)
+    time.sleep(10)
     check_bot_status()
 
   log.info("exit main loop")
