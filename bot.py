@@ -1428,6 +1428,7 @@ def check_bot_status():
   global data
   global log
   global lock
+  log.debug("=start function=")
   
   change_flag=False
   cur_ts = int(time.time())
@@ -1472,7 +1473,7 @@ def check_bot_status():
 
 def check_thread_exist(vk_id):
   global log
-  #log.debug("=start function=")
+  log.debug("=start function=")
   for th in threading.enumerate():
       if th.getName() == 'vk' + str(vk_id):
           return True
@@ -1483,7 +1484,7 @@ def start_vk_polls():
   global data
   global lock
   global log
-  #log.debug("=start function=")
+  log.debug("=start function=")
 
   started=0
   
