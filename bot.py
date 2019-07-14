@@ -294,7 +294,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       send_message(room,"Перешёл в режим команд")
       data["users"][user]["rooms"][room]["state"]="listen_command"
     return True
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute process_command()")
     bot_system_message(user,"внутренняя ошибка бота при обработке команды в функции process_command()")
     return False
@@ -326,7 +327,8 @@ def update_user_info(user):
       ))
     save_data(data)
     return True
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute update_user_info()")
     bot_system_message(user,"внутренняя ошибка бота при получиении профиля пользователя в функции update_user_info()")
     return False
@@ -341,7 +343,8 @@ def find_bridge_room(user,vk_room_id):
         log.info("found bridge for user '%s' with vk_id '%d'"%(user,vk_room_id))
         return room;
     return None
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute find_bridge_room()")
     bot_system_message(user,"внутренняя ошибка бота в функции find_bridge_room()")
     return None
@@ -487,7 +490,8 @@ def get_new_vk_messages_v2(user):
       res["profiles"] = new["profiles"]
     return res
 
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_new_vk_messages_v2()")
     bot_system_message(user,"ошибка получения сообщений из ВК. Ошибка работы с ВК-апи в функции get_new_vk_messages_v2()")
     return None
@@ -536,8 +540,9 @@ def get_new_vk_messages(user):
       res["messages"] = msgs["items"]
       res["profiles"] = new["profiles"]
     return res
-  except:
-    log.error("exception at execute get_new_vk_messages_v2()")
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute get_new_vk_messages()")
     bot_system_message(user,"ошибка получения сообщений из ВК. Ошибка работы с ВК-апи в функции get_new_vk_messages_v2()")
     return None
 
@@ -547,9 +552,10 @@ def extract_unique_code(text):
   log.debug("=start function=")
   # Extracts the unique_code from the sent /start command.
   try:
-      return text[45:].split('&')[0]
-  except:
-      return None
+    return text[45:].split('&')[0]
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    return None
 
 def get_session(token):
   global log
@@ -563,7 +569,8 @@ def get_tses(session):
     api = vk.API(session, v=VK_API_VERSION)
     ts = api.messages.getLongPollServer(need_pts=1)
     return ts['ts'], ts['pts']
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_tses()")
     return None
 
@@ -574,7 +581,8 @@ def verifycode(code):
     session = vk.Session(access_token=code)
     api = vk.API(session, v=VK_API_VERSION)
     return dict(api.account.getProfileInfo(fields=[]))
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_user_profile_by_uid()()")
     return None
 
@@ -585,7 +593,8 @@ def info_extractor(info):
     log.debug("=start function=")
     info = info[-1].url[8:-1].split('.')
     return info
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute info_extractor()")
     return None
 
@@ -600,7 +609,8 @@ def vk_send_text(vk_id, chat_id, message, chat_type="user", forward_messages=Non
       api.messages.send(peer_id=chat_id, random_id=random_id,  message=message, forward_messages=forward_messages)
     else:
       api.messages.send(user_id=chat_id, random_id=random_id, message=message, forward_messages=forward_messages)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_text()")
     log.error("vk_send_text API or network error")
     return False
@@ -631,7 +641,8 @@ def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
       ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api.messages.send return:")
       log.debug(ret)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_video()")
     log.error("vk_send_video API or network error")
     return False
@@ -664,7 +675,8 @@ def vk_send_audio(vk_id, chat_id, name, audio_data, chat_type="user"):
       ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api.messages.send return:")
       log.debug(ret)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_audio()")
     log.error("vk_send_video API or network error")
     return False
@@ -699,7 +711,8 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, chat_type="user"):
       ret=api.messages.send(user_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
       log.debug("api..messages.send return:")
       log.debug(ret)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_doc()")
     log.error("vk_send_doc API or network error")
     return False
@@ -735,7 +748,8 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
       ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=attachment)
       log.debug("api..messages.send return:")
       log.debug(ret)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_photo()")
     log.error("vk_send_photo API or network error")
     return False
@@ -769,7 +783,8 @@ def delete_room_association(user,room,cmd):
           if item.user_id!=my_full_id:
             log.debug("kick user_id: %s"%item.user_id)
             client.rooms[room_id].kick_user(item.user_id,"пользователь удалил эту ассоциацию диалога ВК и комнаты MATRIX")
-      except:
+      except Exception as e:
+        log.error(get_exception_traceback_descr(e))
         log.error("error kick users from room: '%s'"%(room_id))
         bot_system_message(user,"Ошибка при попытке выгнать пользователей из комнаты: %s"%room_id)
       bot_system_message(user,"Успешно выгнал всех из комнаты: %s"%room_id)
@@ -778,7 +793,8 @@ def delete_room_association(user,room,cmd):
         # Нужно выйти из комнаты:
         log.info("try leave from room: '%s'"%(room_id))
         response = client.api.leave_room(room_id)
-      except:
+      except Exception as e:
+        log.error(get_exception_traceback_descr(e))
         log.error("error leave room: '%s'"%(room_id))
         bot_system_message(user,"Ошибка выхода из комнаты: %s"%room_id)
         return False
@@ -787,7 +803,8 @@ def delete_room_association(user,room,cmd):
         # И забыть её:
         log.info("Forgot room: '%s'"%(room_id))
         response = client.api.forget_room(room_id)
-      except:
+      except Exception as e:
+        log.error(get_exception_traceback_descr(e))
         log.error("error forgot room: '%s'"%(room_id))
         bot_system_message(user,"Не смог 'забыть' (удалить из архива) комнату: %s"%room_id)
         return False
@@ -798,7 +815,8 @@ def delete_room_association(user,room,cmd):
       bot_cancel_command(room,user)
       return False
     return True
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute delete_room_association()")
     bot_system_message(user,"внутренняя ошибка бота")
     return None
@@ -820,7 +838,8 @@ def rooms_command(user,room,cmd):
       else:
         log.debug("no cur_dialog for room: %s"%room_id)
     bot_system_message(user,message)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("create and send list of current rooms")
     bot_system_message(user,"Ошибка формирования списка комнат")
     return False
@@ -864,7 +883,8 @@ def dialogs_command(user,room,cmd):
     data["users"][user]["rooms"][room]["state"]="wait_dialog_index"
     data["users"][user]["rooms"][room]["dialogs_list"]=dialogs_list
     return True
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("create message with dialogs")
     bot_system_message(user,'Не смог сформировать список спиоок бесед из ВК - попробуйте позже  или обратитесь к разработчику :-(')
     bot_cancel_command(room,user)
@@ -879,7 +899,8 @@ def bot_system_message(user,message):
     log.info(message)
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
     return send_message(bot_control_room,message)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute bot_system_message()")
     return False
 
@@ -895,7 +916,8 @@ def bot_cancel_command(room,user):
     data["users"][user]["rooms"][room]["state"]="listen_command"
     send_message(bot_control_room,'Отменил текущий режим (%s) и перешёл в начальный режим ожидания команд. Жду команд.'%session_data_room["state"])
     return True
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute bot_cancel_command()")
     bot_system_message(user,"внутренняя ошибка бота")
     return False
@@ -960,7 +982,8 @@ def get_dialogs(vk_id):
         elem["title_ext"]=elem["title"]
         out["chats"][elem["id"]]=elem
 
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("get dialogs from VK API")
     return None
   #log.debug(json.dumps(out, indent=4, sort_keys=True,ensure_ascii=False))
@@ -987,14 +1010,16 @@ def close_dialog(user,room_id):
             # Нужно выйти из комнаты:
             log.info("Leave from room: '%s'"%(room_id))
             response = client.api.leave_room(room_id)
-          except:
+          except Exception as e:
+            log.error(get_exception_traceback_descr(e))
             log.error("error leave room: '%s'"%(room_id))
             return None
           try:
             # И забыть её:
             log.info("Forgot room: '%s'"%(room_id))
             response = client.api.forget_room(room_id)
-          except:
+          except Exception as e:
+            log.error(get_exception_traceback_descr(e))
             log.error("error forgot room: '%s'"%(room_id))
             return None
           return None
@@ -1007,7 +1032,8 @@ def close_dialog(user,room_id):
 
     log.info("do not close dialog for user user '%s' and room '%s'"%(user,room_id))
     return False
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute close_dialog()")
     bot_system_message(user,"внутренняя ошибка бота при закрытии диалога")
     return False
@@ -1034,7 +1060,8 @@ def login_command(user,room,cmd):
       data["users"][user]["rooms"][room]["state"]="wait_vk_id"
     else:
       send_message(room,'Вход уже выполнен!\n/logout для выхода.')
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute login_command()")
     bot_system_message(user,"внутренняя ошибка бота")
     return None
@@ -1063,14 +1090,16 @@ def save_data(data):
   log.debug("save to data_file:%s"%conf.data_file)
   try:
     data_file=open(conf.data_file,"wb")
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("open(%s) for writing"%conf.data_file)
     return False
     
   try:
     pickle.dump(data,data_file)
     data_file.close()
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("pickle.dump to '%s'"%conf.data_file)
     return False
   return True
@@ -1087,7 +1116,8 @@ def load_data():
       data=pickle.load(data_file)
       data_file.close()
       log.debug("Загрузили файл промежуточных данных: '%s'" % tmp_data_file)
-    except:
+    except Exception as e:
+      log.error(get_exception_traceback_descr(e))
       log.warning("Битый файл сессии - сброс")
       reset=True
     if not "users" in data:
@@ -1143,14 +1173,16 @@ def create_room(matrix_uid, room_name):
       # Нужно выйти из комнаты:
       log.info("Leave from room: '%s'"%(room.room_id))
       response = client.api.leave_room(room.room_id)
-    except:
+    except Exception as e:
+      log.error(get_exception_traceback_descr(e))
       log.error("error leave room: '%s'"%(room.room_id))
       return None
     try:
       # И забыть её:
       log.info("Forgot room: '%s'"%(room.room_id))
       response = client.api.forget_room(room.room_id)
-    except:
+    except Exception as e:
+      log.error(get_exception_traceback_descr(e))
       log.error("error leave room: '%s'"%(room.room_id))
       return None
     return None
@@ -1158,7 +1190,8 @@ def create_room(matrix_uid, room_name):
 
   try:
     room.set_room_name(room_name)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("error set_room_name room_id='%s' to '%s'"%(room.room_id, room_name))
   return room.room_id;
 
@@ -1180,7 +1213,8 @@ def send_html(room_id,html):
       return False
   try:
     room.send_html(html)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("Unknown error at send message '%s' to room '%s'"%(html,room_id))
     bot_system_message(user,'Не смог отправить сообщение в комнату: %s'%room_id)
     return False
@@ -1209,7 +1243,8 @@ def get_file(mxurl):
   try:
     response = requests.get(full_url, stream=True)
     data = response.content      # a `bytes` object
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("fetch file data from url: %s"%full_url)
     return None
   return data
@@ -1236,7 +1271,8 @@ def send_message(room_id,message):
       return False
   try:
     room.send_text(message)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("Unknown error at send message '%s' to room '%s'"%(message,room_id))
     return False
   return True
@@ -1258,7 +1294,8 @@ def send_notice(room_id,message):
       return False
   try:
     room.send_notice(message)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("Unknown error at send notice message '%s' to room '%s'"%(message,room_id))
     return False
   return True
@@ -1297,12 +1334,7 @@ def on_message(event):
             reply_to_id=None
             if "m.relates_to" in  event['content']:
               # это ответ на сообщение:
-              try:
-                reply_to_id=event['content']['m.relates_to']['m.in_reply_to']['event_id']
-              except:
-                log.error("bad formated event reply - skip")
-                log.error(event)
-                return False
+              reply_to_id=event['content']['m.relates_to']['m.in_reply_to']['event_id']
             formatted_body=None
             format_type=None
             if "formatted_body" in event['content'] and "format" in event['content']:
@@ -1310,48 +1342,28 @@ def on_message(event):
               format_type=event['content']['format']
 
         elif event['content']['msgtype'] == "m.video":
-          try:
-            file_type=event['content']['info']['mimetype']
-            file_url=event['content']['url']
-          except:
-            log.error("bad formated event with file data - skip")
-            log.error(event)
-            return False
+          file_type=event['content']['info']['mimetype']
+          file_url=event['content']['url']
         elif event['content']['msgtype'] == "m.image":
-          try:
-            file_url=event['content']['url']
-            if "imageinfo" in event['content']['info']:
-              file_type=event['content']['info']['imageinfo']['mimetype']
-            else:
-              file_type=event['content']['info']['mimetype']
-          except:
-            log.error("bad formated event with file data - skip")
-            log.error(event)
-            return False
+          file_url=event['content']['url']
+          if "imageinfo" in event['content']['info']:
+            file_type=event['content']['info']['imageinfo']['mimetype']
+          else:
+            file_type=event['content']['info']['mimetype']
         elif event['content']['msgtype'] == "m.file":
-          try:
-            file_url=event['content']['url']
-            if "fileinfo" in event['content']['info']:
-              file_type=event['content']['info']['fileinfo']['mimetype']
-            else:
-              file_type=event['content']['info']['mimetype']
-          except:
-            log.error("bad formated event with file data - skip")
-            log.error(event)
-            return False
+          file_url=event['content']['url']
+          if "fileinfo" in event['content']['info']:
+            file_type=event['content']['info']['fileinfo']['mimetype']
+          else:
+            file_type=event['content']['info']['mimetype']
         elif event['content']['msgtype'] == "m.audio":
-          try:
-            file_url=event['content']['url']
-            if "fileinfo" in event['content']['info']:
-              file_type=event['content']['info']['fileinfo']['mimetype']
-            elif "audioinfo" in event['content']['info']:
-              file_type=event['content']['info']['audioinfo']['mimetype']
-            else:
-              file_type=event['content']['info']['mimetype']
-          except:
-            log.error("bad formated event with file data - skip")
-            log.error(event)
-            return False
+          file_url=event['content']['url']
+          if "fileinfo" in event['content']['info']:
+            file_type=event['content']['info']['fileinfo']['mimetype']
+          elif "audioinfo" in event['content']['info']:
+            file_type=event['content']['info']['audioinfo']['mimetype']
+          else:
+            file_type=event['content']['info']['mimetype']
 
         log.debug("{0}: {1}".format(event['sender'], event['content']["body"].encode('utf8')))
         log.debug("try lock before process_command()")
@@ -1369,11 +1381,11 @@ def on_message(event):
             ) == False:
             log.error("error process command: '%s'"%event['content']["body"])
             return False
-
     else:
       print(event['type'])
     return True
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute on_message()")
     bot_system_message(user,"внутренняя ошибка бота")
     log.error("json of event:")
@@ -1478,7 +1490,8 @@ def main():
     client.add_invite_listener(on_invite)
     client.start_listener_thread(exception_handler=exception_handler)
     log.info("success init listeners")
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute main() at init listeners")
     sys.exit(1)
 
@@ -1494,7 +1507,8 @@ def main():
         log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
       time.sleep(10)
       check_bot_status()
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute main() at main loop")
     sys.exit(1)
 
@@ -1547,7 +1561,8 @@ def check_bot_status():
               data["users"][user]["vk"]["connection_status_descr"]\
             ))
     return change_flag
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute check_bot_status()")
     return False
 
@@ -1560,7 +1575,8 @@ def check_thread_exist(vk_id):
         if th.getName() == 'vk' + str(vk_id):
             return True
     return False
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute check_thread_exist()")
     return False
 
@@ -1592,7 +1608,8 @@ def start_vk_polls():
             started+=1
             bot_system_message(user,"Успешно запустил процесс получения сообщений из ВК.")
     return started
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute start_vk_polls()")
     return 0
 
@@ -1601,7 +1618,8 @@ def get_name_from_url(url):
   try:
     log.debug("=start function=")
     return re.sub('.*/', '', url)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_name_from_url()")
     return None
 
@@ -1702,7 +1720,8 @@ def create_reply_forward_text_for_matrix(user,fwd):
         text+="<p>неизвестный тип местоположения</p>\n"
     text+="</blockquote>\n"
     return text
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute create_reply_forward_text_for_matrix()")
     bot_system_message(user,"внутренняя ошибка бота")
     return None
@@ -1754,7 +1773,8 @@ def send_geo_to_matrix(room,sender_name,geo):
       bot_system_message(user,"получен неизвестный тип гео-данных - прпоускаю")
       send_message(room,"получен неизвестный тип гео-данных - прпоускаю")
       return False
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute send_geo_to_matrix()")
     return False
 
@@ -1798,6 +1818,7 @@ def send_photo_to_matrix(room,sender_name,attachment):
       log.error("send file to room")
       return False
   except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
@@ -1837,7 +1858,8 @@ def send_wall_to_matrix(room,sender_name,attachment):
     if send_html(room,text)==False:
       log.error("send_html()")
       return False
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at parse attachemt wall()")
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
@@ -1869,6 +1891,7 @@ def send_link_to_matrix(room,sender_name,attachment):
       bot_system_message(user,"Не смог отправить сообщение в комнату: '%s', сообщение было: %s"%(room,text))
       return False
   except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
@@ -1918,14 +1941,22 @@ def send_video_to_matrix(room,sender_name,attachment):
     video_url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
     message="Ссылка на просмотр потокового видео: %s"%video_url
     if description!=None:
-      message=+"\nОписание: %s"%description
+      message+="\nОписание: %s"%description
     ret=send_message(room,message)
   except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
   return ret
+
+def get_exception_traceback_descr(e):
+  tb_str = traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
+  result=""
+  for msg in tb_str:
+    result+=msg
+  return result
 
 def send_audio_to_matrix(room,sender_name,attachment):
   global log
@@ -1956,6 +1987,7 @@ def send_audio_to_matrix(room,sender_name,attachment):
       log.error("send file to room")
       return False
   except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
@@ -1990,6 +2022,7 @@ def send_voice_to_matrix(room,sender_name,attachment):
       log.error("send file to room")
       return False
   except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
@@ -2044,7 +2077,8 @@ def send_notice_about_attachments(user,room,sender_name,attachments):
           log.error("send_notice(%s)"%text)
           success_status=False
     return success_status
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute send_notice_about_attachments()")
     bot_system_message(user,"внутренняя ошибка бота")
     return False
@@ -2103,7 +2137,8 @@ def send_attachments(user,room,sender_name,attachments):
         bot_system_message(user,"Из ВК пришёл неизвестный тип вложения (%s) для комнаты '%s'"%(attachment["type"],get_name_of_matrix_room(room)))
         send_message(room,"Из ВК пришёл неизвестный тип вложения (%s)"%attachment["type"])
     return success_status
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception in send_attachments()")
     bot_system_message(user,"при разборе вложений - произошли ошибки. Сообщение не принято. Обратитесь к разработчику, проверьте сообщения в ВК")
     log.error("json of attachments:")
@@ -2119,7 +2154,8 @@ def get_data_from_url(url,referer=None):
     else:
       response = requests.get(url, stream=True)
     data = response.content      # a `bytes` object
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("fetch data from url: %s"%url)
     return None
   return data
@@ -2271,7 +2307,8 @@ def check_equal_messages(vk_body,matrix_body):
     else:
       log.debug("check_equal_messages() NOT equal!")
     return False
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute check_equal_messages()")
     return False
 
@@ -2285,7 +2322,8 @@ def get_user_profile_by_uid(user,uid):
       return dialogs["users"][uid]
     else:
       return None
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_user_profile_by_uid()")
     bot_system_message(user,"внутренняя ошибка бота")
     return None
@@ -2319,7 +2357,8 @@ def get_photo_url_from_photo_attachment(attachment):
       log.error("get src for photo")
       log.error(attachment["photo"])
     return data_item
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exceptions get_photo_url_from_photo_attachment()")
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
@@ -2417,7 +2456,8 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
       log.warning(m)
 
     return send_status
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exceptions in proccess_vk_message()")
     bot_system_message(user,"при разборе сообщения из ВК - произошли ошибки - не смог принять сообщение. Обратитесь к разработчику.")
     log.error("json of vk_message:")
@@ -2532,7 +2572,8 @@ def vk_receiver_thread(user):
       # FIXME 
       #log.info("sleep main loop 1")
       #time.sleep(5)
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exceptions in vk_receiver_thread()")
     bot_system_message(user,"при получении сообщения ВК (в функции vk_receiver_thread() )  - произошли ошибки. Не смог принять сообщения. Обратитесь к разработчику.")
     return False
@@ -2547,7 +2588,8 @@ def get_name_of_matrix_room(room_id):
     log.debug(name)
     log.debug("name of %s = %s"%(room_id,name))
     return name
-  except:
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
     log.error("exceptions in get_name_of_matrix_room()")
     log.error("error get name of MATRIX room: %s"%room_id)
     return None
