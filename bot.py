@@ -1590,6 +1590,7 @@ def start_vk_polls():
             t.setDaemon(True)
             t.start()
             started+=1
+            bot_system_message(user,"Успешно запустил процесс получения сообщений из ВК.")
     return started
   except:
     log.error("exception at execute start_vk_polls()")
