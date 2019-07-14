@@ -1474,6 +1474,7 @@ def check_bot_status():
 def check_thread_exist(vk_id):
   global log
   log.debug("=start function=")
+  log.debug("=start function=")
   for th in threading.enumerate():
       if th.getName() == 'vk' + str(vk_id):
           return True
@@ -1494,7 +1495,8 @@ def start_vk_polls():
         vk_data=data["users"][user]["vk"]
         vk_id=data["users"][user]["vk"]["vk_id"]
         if check_thread_exist(vk_id) == False:
-          log.info("no thread for user %s - try start new tread"%user)
+          log.info("no thread for user '%s' with name: '%s' - try start new tread"%(user,"vk"+str(vk_id)))
+          bot_system_message(user,"Не обнаружил потока, слушающего сообщения для пользователя '%s' и его VK id='%s'"%(user,str(vk_id)))
           # обновляем информацию о пользователе:
           if update_user_info(user) == False:
             log.error("update_user_info")
