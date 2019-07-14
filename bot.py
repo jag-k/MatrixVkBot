@@ -1880,7 +1880,15 @@ def send_video_to_matrix(room,sender_name,attachment):
   ret=False
   try:
     log.debug("=start function=")
-    src=attachment["video"]['first_frame_320']
+    src=None
+    if 'first_frame_320' in attachment["video"]:
+      src=attachment["video"]['first_frame_320']
+    elif 'photo_320' in attachment["video"]:
+      src=attachment["video"]['photo_320']
+
+    description=None
+    if 'description' in attachment["video"]:
+      description=attachment["video"]["description"]
     
     image_data=get_data_from_url(src)
     if image_data==None:
@@ -1908,7 +1916,10 @@ def send_video_to_matrix(room,sender_name,attachment):
       log.error("send file to room")
       return False
     video_url="https://vk.com/video%(owner_id)s_%(vid)s"%{"owner_id":attachment["video"]["owner_id"],"vid":attachment["video"]["id"]}
-    ret=send_message(room,"Ссылка на просмотр потокового видео: %s"%video_url)
+    message="Ссылка на просмотр потокового видео: %s"%video_url
+    if description!=None:
+      message=+"\nОписание: %s"%description
+    ret=send_message(room,message)
   except:
     log.error("exception at parse attachemt '%s'"%attachment["type"])
     log.error("json of attachment:")
