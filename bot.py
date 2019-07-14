@@ -1647,8 +1647,8 @@ def send_file_to_matrix(room,sender_name,attachment):
     if matrix_send_file(room,mxc_url,file_name,mimetype,size) == False:
       log.error("send file to room")
       return False
-  except:
-    log.error("exception at parse attachemt '%s'"%attachment["type"])
+  except Exception as e:
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
@@ -1797,8 +1797,8 @@ def send_photo_to_matrix(room,sender_name,attachment):
     if matrix_send_image(room,mxc_url,file_name,mimetype,height,width,size) == False:
       log.error("send file to room")
       return False
-  except:
-    log.error("exception at parse attachemt '%s'"%attachment["type"])
+  except Exception as e:
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
@@ -1868,8 +1868,8 @@ def send_link_to_matrix(room,sender_name,attachment):
       log.error("send_html()")
       bot_system_message(user,"Не смог отправить сообщение в комнату: '%s', сообщение было: %s"%(room,text))
       return False
-  except:
-    log.error("exception at parse attachemt '%s'"%attachment["type"])
+  except Exception as e:
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
@@ -1920,8 +1920,8 @@ def send_video_to_matrix(room,sender_name,attachment):
     if description!=None:
       message=+"\nОписание: %s"%description
     ret=send_message(room,message)
-  except:
-    log.error("exception at parse attachemt '%s'"%attachment["type"])
+  except Exception as e:
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
@@ -1955,8 +1955,8 @@ def send_audio_to_matrix(room,sender_name,attachment):
     if matrix_send_audio(room,mxc_url,file_name,mimetype,size,duration) == False:
       log.error("send file to room")
       return False
-  except:
-    log.error("exception at parse attachemt '%s'"%attachment["type"])
+  except Exception as e:
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
@@ -1989,8 +1989,8 @@ def send_voice_to_matrix(room,sender_name,attachment):
     if matrix_send_audio(room,mxc_url,file_name,mimetype,size=size,duration=duration) == False:
       log.error("send file to room")
       return False
-  except:
-    log.error("exception at parse attachemt '%s'"%attachment["type"])
+  except Exception as e:
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
     log.error("json of attachment:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
