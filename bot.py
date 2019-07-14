@@ -2401,7 +2401,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
       matrix_room_name=get_name_of_matrix_room(room)
       if matrix_room_name==None:
         matrix_room_name=room
-      bot_system_message(user,'Ошибка: не смог отправить сообщение в матрицу из ВК в комнату %s'%matrix_room_name)
+      bot_system_message(user,"Ошибка: не смог отправить сообщение в матрицу из ВК в комнату '%s'"%matrix_room_name)
       log.warning("сообщение было:")
       log.warning(m)
 
