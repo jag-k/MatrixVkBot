@@ -277,7 +277,20 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
         send_message(room,"Перешёл в режим команд")
         data["users"][user]["rooms"][room]["state"]="listen_command"
         return False
-      room_id=create_room(user,cur_dialog["title"] + " (VK)")
+
+      # получаем фото пользователя ВК с которым устанавливаем мост:
+      room_avatar_mx_url=None
+      vk_id=data["users"][user]["vk"]["vk_id"]
+      session = get_session(vk_id)
+      user_photo_url=vk_get_user_photo_url(session, cur_dialog["id"])
+      if user_photo_url==None:
+        log.error("get user vk profile photo for user_id=%d"%cur_dialog["id"])
+      else:
+        user_photo_image_data=get_data_from_url(user_photo_url)
+        if user_photo_image_data==None:
+          log.error("get image from url: %s"%user_photo_url)
+           
+      room_id=create_room(user,cur_dialog["title_ext"] + " (VK)",user_photo_image_data)
       if room_id==None:
         log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
         send_message(room,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
@@ -437,8 +450,10 @@ def get_new_vk_messages_v2(user):
         break
 
       # Проверка на необходимость выйти из потока:
+      exit_flag=False
       with lock:
-        exit_flag=data["users"][user]["vk"]["exit"]
+        if "exit" in data["users"][user]["vk"]:
+          exit_flag=data["users"][user]["vk"]["exit"]
       log.debug("thread: exit_flag=%d"%int(exit_flag))
       if exit_flag==True:
         log.info("get command to close thread for user %s - exit from thread..."%user)
@@ -1195,8 +1210,14 @@ def create_room(matrix_uid, room_name, avatar_data=None):
 
   # выставляем аватар комнаты:
   if avatar_data!=None:
-    if set_matrix_room_avatar(room.room_id,avatar_data) == None:
+    log.debug("try set_matrix_room_avatar()")
+    ret_value=set_matrix_room_avatar(room.room_id,avatar_data)
+    log.debug("set_matrix_room_avatar() return:")
+    log.debug(ret_value)
+    if ret_value==None:
       log.error("set_matrix_room_avatar()")
+    else:
+      log.info("success set room avatar")
 
   return room.room_id;
 
@@ -1319,8 +1340,8 @@ def on_message(event):
     file_url=None
     file_type=None
 
-    #print("new MATRIX message:")
-    #print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
+    print("new MATRIX message:")
+    print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
     if event['type'] == "m.room.member":
         # join:
         if event['content']['membership'] == "join":
@@ -2575,8 +2596,10 @@ def vk_receiver_thread(user):
               log.warning("proccess_vk_message(room=%s) return false"%room_id)
 
       # Проверка на необходимость выйти:
+      exit_flag=False
       with lock:
-        exit_flag=data["users"][user]["vk"]["exit"]
+        if "exit" in data["users"][user]["vk"]:
+          exit_flag=data["users"][user]["vk"]["exit"]
         if exit_flag==True:
           data["users"][user]["vk"]["exit"]=False
       log.debug("thread: exit_flag=%d"%int(exit_flag))
@@ -2625,23 +2648,24 @@ def vk_get_user_photo_url(session, user_id):
   return url
 
 def set_matrix_room_avatar(room_id, image_data):
-    global client
-    try:
-      # загружаем картинку в матрицу и получаем mx_url:
-      room_avatar_mx_url=upload_file(image_data,"image/jpg")
-      if room_avatar_mx_url == None:
-        log.error("uload file to matrix server")
-        return None
+  global client
+  try:
+    log.debug("=start function=")
+    # загружаем картинку в матрицу и получаем mx_url:
+    room_avatar_mx_url=upload_file(image_data,"image/jpeg")
+    if room_avatar_mx_url == None:
+      log.error("uload file to matrix server")
+      return None
 
-      """Perform PUT /rooms/$room_id/state/m.room.avatar
-      """
-      body = {
-          "info": {
-            "mimetype": "image/jpeg"
-          },
-          "url":mxc_url
-      }
-      return client.api.send_state_event(room_id, "m.room.avatar", body, timestamp=None)
+    """Perform PUT /rooms/$room_id/state/m.room.avatar
+    """
+        #"info": {
+        #  "mimetype": "image/jpeg"
+        #},
+    body = {
+        "url":"%s"%room_avatar_mx_url
+    }
+    return client.api.send_state_event(room_id, "m.room.avatar", body, timestamp=None)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute set_matrix_room_avatar()")
