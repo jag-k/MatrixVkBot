@@ -1340,8 +1340,8 @@ def on_message(event):
     file_url=None
     file_type=None
 
-    print("new MATRIX message:")
-    print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
+    #print("new MATRIX message:")
+    #print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
     if event['type'] == "m.room.member":
         # join:
         if event['content']['membership'] == "join":
