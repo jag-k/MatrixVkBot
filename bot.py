@@ -1134,13 +1134,11 @@ def load_data():
   #debug_dump_json_to_file("debug_data_as_json.json",data)
   return data
 
-def create_room(matrix_uid, room_name):
+def create_room(matrix_uid, room_name, avatar_data=None):
   global log
   global louser_id
   global client
   log.debug("=start function=")
-
-  log.debug("create_room()")
 
   # сначала спрашиваем у сервера, есть ли такой пользователь (чтобы не создавать просто так комнату):
   try:
@@ -1188,11 +1186,17 @@ def create_room(matrix_uid, room_name):
     return None
   log.debug("success invite user '%s' to room '%s'"%(matrix_uid,room.room_id))
 
+  # выставляем имя комнаты:
   try:
     room.set_room_name(room_name)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("error set_room_name room_id='%s' to '%s'"%(room.room_id, room_name))
+
+  # выставляем аватар комнаты:
+  if avatar_data!=None:
+    set_matrix_room_avatar(room.room_id,avatar_data)
+
   return room.room_id;
 
 def send_html(room_id,html):
@@ -2533,8 +2537,18 @@ def vk_receiver_thread(user):
               bot_system_message(user,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["peer_id"])
               bot_system_message(user,"Сообщение было: '%s'"%m["text"])
               continue
+
+            # получаем фото пользователя ВК с которым устанавливаем мост:
+            room_avatar_mx_url=None
+            user_photo_url=vk_get_user_photo_url(session, cur_dialog["id"])
+            if user_photo_url==None:
+              log.error("get user vk profile photo for user_id=%d"%cur_dialog["id"])
+            else:
+              user_photo_image_data=get_data_from_url(user_photo_url)
+              if user_photo_image_data==None:
+                log.error("get image from url: %s"%user_photo_url)
             
-            room_id=create_room(user,cur_dialog["title_ext"] + " (VK)")
+            room_id=create_room(user,cur_dialog["title_ext"] + " (VK)",user_photo_image_data)
             if room_id==None:
               log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
               bot_system_message(user,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
@@ -2592,6 +2606,44 @@ def get_name_of_matrix_room(room_id):
     log.error(get_exception_traceback_descr(e))
     log.error("exceptions in get_name_of_matrix_room()")
     log.error("error get name of MATRIX room: %s"%room_id)
+    return None
+
+def vk_get_user_photo_url(session, user_id):
+  global log
+  try:
+    log.debug("=start function=")
+    api = vk.API(session, v=VK_API_VERSION)
+    response=api.users.get(user_ids="%d"%user_id,fields="photo_max")
+    url=response[0]["photo_max"]
+    log.debug(json.dumps(response, indent=4, sort_keys=True,ensure_ascii=False))
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute vk_get_user_photo()")
+    log.error("vk_send_text API or network error")
+    return None
+  return url
+
+def set_matrix_room_avatar(room_id, image_data):
+    global client
+    try:
+      # загружаем картинку в матрицу и получаем mx_url:
+      room_avatar_mx_url=upload_file(image_data,"image/jpg")
+      if room_avatar_mx_url == None:
+        log.error("uload file to matrix server")
+        return None
+
+      """Perform PUT /rooms/$room_id/state/m.room.avatar
+      """
+      body = {
+          "info": {
+            "mimetype": "image/jpeg"
+          },
+          "url":mxc_url
+      }
+      return client.api.send_state_event(room_id, "m.room.avatar", body, timestamp=None)
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute set_matrix_room_avatar()")
     return None
 
 if __name__ == '__main__':
