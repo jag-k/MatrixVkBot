@@ -1195,7 +1195,8 @@ def create_room(matrix_uid, room_name, avatar_data=None):
 
   # выставляем аватар комнаты:
   if avatar_data!=None:
-    set_matrix_room_avatar(room.room_id,avatar_data)
+    if set_matrix_room_avatar(room.room_id,avatar_data) == None:
+      log.error("set_matrix_room_avatar()")
 
   return room.room_id;
 
