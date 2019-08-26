@@ -316,6 +316,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 def update_user_info(user):
   global log
   global data
+
+  found=False
   try:
     log.debug("=start function=")
     #try:
@@ -332,14 +334,19 @@ def update_user_info(user):
       if item["last_name"] == data["users"][user]["vk"]["last_name"] and \
         item["first_name"] == data["users"][user]["vk"]["first_name"]:
         # предполагаем, что у пользователя в контактах не будет человека с таким же ФИО, как и он сам O_o:
+        found=True
         data["users"][user]["vk"]["user_id"]=item["id"]
-    log.info("определил свой аккаунт как: %s %s, id:%d"%(\
-      data["users"][user]["vk"]["last_name"],\
-      data["users"][user]["vk"]["first_name"],\
-      data["users"][user]["vk"]["user_id"]\
-      ))
-    save_data(data)
-    return True
+    if found==True:
+      log.info("определил свой аккаунт как: %s %s, id:%d"%(\
+        data["users"][user]["vk"]["last_name"],\
+        data["users"][user]["vk"]["first_name"],\
+        data["users"][user]["vk"]["user_id"]\
+        ))
+      save_data(data)
+      return True
+    else:
+      log.warning("не нашли информацию о себе - пропуск")
+      return False
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute update_user_info()")
@@ -383,8 +390,6 @@ def get_new_vk_messages_v2(user):
         ts=data["users"][user]["vk"]["ts_polling"]
       if "key" in data["users"][user]["vk"]:
         key=data["users"][user]["vk"]["key"]
-      if "session" in data["users"][user]["vk"]:
-        session=data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["session"]
     exit_flag=False
     while True:
       try:
@@ -425,7 +430,6 @@ def get_new_vk_messages_v2(user):
           #data["users"][user]["vk"]["ts"]=ts
           data["users"][user]["vk"]["server"]=server
           data["users"][user]["vk"]["key"]=key
-          data["users"][user]["vk"]["session"]=session
           data["users"][user]["vk"]["ts_polling"]=ts
         save_data(data)
         continue
