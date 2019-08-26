@@ -890,7 +890,7 @@ def dialogs_command(user,room,cmd):
       item=dialogs["chats"][item_id]
       dialogs_list[index]=item
       message+="%d. "%index
-      log.debug(item)
+      #log.debug(item)
       message+=item["title_ext"]
       message+="\n"
       index+=1
@@ -971,6 +971,7 @@ def get_dialogs(vk_id):
         elem={}
         elem["type"]="chat"
         elem["id"]=item["conversation"]["peer"]["id"]
+        log.debug("type=%s, item=%s"%(elem["type"], elem["id"]))
         elem["users_count"]=item["conversation"]["chat_settings"]["members_count"]
         elem["title"]=item["conversation"]["chat_settings"]["title"]
         elem["state"]=item["conversation"]["chat_settings"]["state"]
@@ -1000,6 +1001,8 @@ def get_dialogs(vk_id):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("get dialogs from VK API")
+    log.debug("dialogs data was:")
+    log.debug(json.dumps(dialogs, indent=4, sort_keys=True,ensure_ascii=False))
     return None
   #log.debug(json.dumps(out, indent=4, sort_keys=True,ensure_ascii=False))
   return out
