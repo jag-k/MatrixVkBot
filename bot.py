@@ -1138,7 +1138,7 @@ def save_data(data):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("json.dump to '%s'"%conf.data_file)
-    print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
+    print(json.dumps(data, indent=4, sort_keys=True,ensure_ascii=False))
     sys.exit(1)
     return False
   return True
