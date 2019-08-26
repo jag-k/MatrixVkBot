@@ -964,11 +964,13 @@ def get_dialogs(vk_id):
     if "groups" in dialogs:
       for item in dialogs["groups"]:
         out["groups"][item["id"]]=item
+    log.debug("count groups=%d"%len(out["groups"]))
 
     out["users"]={}
     if "profiles" in dialogs:
       for item in dialogs["profiles"]:
         out["users"][item["id"]]=item
+    log.debug("count users=%d"%len(out["users"]))
 
     out["chats"]={}
     if "items" in dialogs:
@@ -1005,6 +1007,7 @@ def get_dialogs(vk_id):
             elem["title"]+=" "+out["users"][elem["user_id"]]["last_name"]
           elem["title_ext"]=elem["title"]
           out["chats"][elem["id"]]=elem
+    log.debug("count chats=%d"%len(out["chats"]))
 
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
