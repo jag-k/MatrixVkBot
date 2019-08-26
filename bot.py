@@ -1470,25 +1470,41 @@ def on_invite(room, event):
   for event_item in event['events']:
     if event_item['type'] == "m.room.join_rules":
       if event_item['content']['join_rule'] == "invite":
-        # Приглашение вступить в комнату:
-        room = client.join_room(room)
-        room.send_text("Спасибо за приглашение! Недеюсь быть Вам полезным. :-)")
-        room.send_text("Для справки по доступным командам - неберите: '!help' (или '!?', или '!h')")
         user=event_item["sender"]
-        log.info("New user: '%s'"%user)
-        # Прописываем системную группу для пользователя (группа, в которую будут сыпаться системные сообщения от бота и где он будет слушать команды):
-        with lock:
-          if "users" not in data:
-            data["users"]={}
-          if user not in data["users"]:
-            data["users"][user]={}
-          if "matrix_bot_data" not in data["users"][user]:
-            data["users"][user]["matrix_bot_data"]={}
-          if "control_room" not in data["users"][user]["matrix_bot_data"]:
-            data["users"][user]["matrix_bot_data"]["control_room"]=room.room_id
-          save_data(data)
+        # проверка на разрешения:
+        allow=False
+        if len(conf.allow_domains)>0:
+          for allow_domain in conf.allow_domains:
+            if re.search('.*:%s$'%allow_domain.lower(), user.lower()) is not None:
+              allow=True
+              log.info("user: %s from allow domain: %s - allow invite"%(user, allow_domain))
+              break
+        if len(conf.allow_users)>0:
+          for allow_user in conf.allow_users:
+            if allow_user.lower() == user.lower():
+              allow=True
+              log.info("user: %s from allow users - allow invite"%user)
+              break
+        if len(conf.allow_domains)==0 and len(conf.allow_users)==0:
+          allow=True
 
-
+        if allow == True:
+          # Приглашение вступить в комнату:
+          room = client.join_room(room)
+          room.send_text("Спасибо за приглашение! Недеюсь быть Вам полезным. :-)")
+          room.send_text("Для справки по доступным командам - неберите: '!help' (или '!?', или '!h')")
+          log.info("New user: '%s'"%user)
+          # Прописываем системную группу для пользователя (группа, в которую будут сыпаться системные сообщения от бота и где он будет слушать команды):
+          with lock:
+            if "users" not in data:
+              data["users"]={}
+            if user not in data["users"]:
+              data["users"][user]={}
+            if "matrix_bot_data" not in data["users"][user]:
+              data["users"][user]["matrix_bot_data"]={}
+            if "control_room" not in data["users"][user]["matrix_bot_data"]:
+              data["users"][user]["matrix_bot_data"]["control_room"]=room.room_id
+            save_data(data)
 
 def exception_handler(e):
   global client
