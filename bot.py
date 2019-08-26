@@ -957,46 +957,50 @@ def get_dialogs(vk_id):
     dialogs = api.messages.getConversations(count=200,extended=1,fields="id,first_name,last_name,name,type")
     #debug_dump_json_to_file("dialogs_from_api.json",dialogs)
     out["groups"]={}
-    for item in dialogs["groups"]:
-      out["groups"][item["id"]]=item
+    if "groups" in dialogs:
+      for item in dialogs["groups"]:
+        out["groups"][item["id"]]=item
+
     out["users"]={}
-    for item in dialogs["profiles"]:
-      out["users"][item["id"]]=item
+    if "profiles" in dialogs:
+      for item in dialogs["profiles"]:
+        out["users"][item["id"]]=item
+
     out["chats"]={}
+    if "items" in dialogs:
+      # Чаты ( это не то же самое, что группы O_o):
+      for item in dialogs["items"]:
+        # приводим к единообразию:
+        if item["conversation"]["peer"]["type"]=="chat":
+          elem={}
+          elem["type"]="chat"
+          elem["id"]=item["conversation"]["peer"]["id"]
+          log.debug("type=%s, item=%s"%(elem["type"], elem["id"]))
+          elem["users_count"]=item["conversation"]["chat_settings"]["members_count"]
+          elem["title"]=item["conversation"]["chat_settings"]["title"]
+          elem["state"]=item["conversation"]["chat_settings"]["state"]
+          elem["title_ext"]=elem["title"]+" (групповой чат)"
+          out["chats"][elem["id"]]=elem
 
-    # Чаты ( это не то же самое, что группы O_o):
-    for item in dialogs["items"]:
-      # приводим к единообразию:
-      if item["conversation"]["peer"]["type"]=="chat":
-        elem={}
-        elem["type"]="chat"
-        elem["id"]=item["conversation"]["peer"]["id"]
-        log.debug("type=%s, item=%s"%(elem["type"], elem["id"]))
-        elem["users_count"]=item["conversation"]["chat_settings"]["members_count"]
-        elem["title"]=item["conversation"]["chat_settings"]["title"]
-        elem["state"]=item["conversation"]["chat_settings"]["state"]
-        elem["title_ext"]=elem["title"]+" (групповой чат)"
-        out["chats"][elem["id"]]=elem
+        if item["conversation"]["peer"]["type"]=="group":
+          elem={}
+          elem["type"]="group"
+          elem["id"]=item["conversation"]["peer"]["id"]
+          elem["group_id"]=item["conversation"]["peer"]["local_id"]
+          elem["title"]=out["groups"][elem["group_id"]]["name"]
+          elem["title_ext"]=elem["title"]+" (сообщество)"
+          out["chats"][elem["id"]]=elem
 
-      if item["conversation"]["peer"]["type"]=="group":
-        elem={}
-        elem["type"]="group"
-        elem["id"]=item["conversation"]["peer"]["id"]
-        elem["group_id"]=item["conversation"]["peer"]["local_id"]
-        elem["title"]=out["groups"][elem["group_id"]]["name"]
-        elem["title_ext"]=elem["title"]+" (сообщество)"
-        out["chats"][elem["id"]]=elem
-
-      if item["conversation"]["peer"]["type"]=="user":
-        elem={}
-        elem["type"]="user"
-        elem["id"]=item["conversation"]["peer"]["id"]
-        elem["user_id"]=item["conversation"]["peer"]["local_id"]
-        elem["title"]=out["users"][elem["user_id"]]["first_name"]
-        if out["users"][elem["user_id"]]["last_name"]!="":
-          elem["title"]+=" "+out["users"][elem["user_id"]]["last_name"]
-        elem["title_ext"]=elem["title"]
-        out["chats"][elem["id"]]=elem
+        if item["conversation"]["peer"]["type"]=="user":
+          elem={}
+          elem["type"]="user"
+          elem["id"]=item["conversation"]["peer"]["id"]
+          elem["user_id"]=item["conversation"]["peer"]["local_id"]
+          elem["title"]=out["users"][elem["user_id"]]["first_name"]
+          if out["users"][elem["user_id"]]["last_name"]!="":
+            elem["title"]+=" "+out["users"][elem["user_id"]]["last_name"]
+          elem["title_ext"]=elem["title"]
+          out["chats"][elem["id"]]=elem
 
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
@@ -1065,12 +1069,18 @@ def login_command(user,room,cmd):
     log.debug("=start function=")
     log.debug("login_command()")
     session_data_vk=data["users"][user]["vk"]
-    if "vk_app_id" not in session_data_vk or session_data_vk["vk_app_id"]==None:
+
+    if conf.vk_app_id != None:
+      # vk_app_id уже указан в конфиге:
+      data["users"][user]["vk"]["vk_app_id"]=conf.vk_app_id
+
+    # если не указан - спрашиваем у пользователя:
+    if "vk_app_id" not in session_data_vk or session_data_vk["vk_app_id"]==None :
       send_message(room,'Пройдите по ссылке https://vk.com/editapp?act=create и создаqnt своё Standalone-приложение, затем во вкладке Настройки переведите Состояние в "Приложение включено" и "видно всем", не забудьте сохранить изменения!')
       send_message(room,'После этого скопируйте "ID приложения" в настройках у созданного перед этим приложения по ссылке https://vk.com/apps?act=manage  и пришлите мне сюда в чат. Я жду :-)')
       data["users"][user]["rooms"][room]["state"]="wait_vk_app_id"
     elif "vk_id" not in session_data_vk or session_data_vk["vk_id"]==None:
-      send_message(room,'Нажмите по ссылке ниже. Откройте её и согласитесь. После скопируйте текст из адресной строки и отправьте эту ссылку мне сюда')
+      send_message(room,'Нажмите по ссылке ниже. Откройте её и согласитесь. После скопируйте текст из адресной строки (именно адресной строки, а не из окна браузера) и отправьте эту ссылку мне сюда')
       link = 'https://oauth.vk.com/authorize?client_id={}&' \
              'display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=friends,messages,offline,docs,photos,video' \
              '&response_type=token&v={}'.format(session_data_vk["vk_app_id"], VK_API_VERSION)
@@ -1107,18 +1117,22 @@ def save_data(data):
   log.debug("=start function=")
   log.debug("save to data_file:%s"%conf.data_file)
   try:
-    data_file=open(conf.data_file,"wb")
+    #data_file=open(conf.data_file,"wb")
+    data_file=open(conf.data_file,"w")
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("open(%s) for writing"%conf.data_file)
     return False
     
   try:
-    pickle.dump(data,data_file)
+    data_file.write(json.dumps(data, indent=4, sort_keys=True,ensure_ascii=False))
+    #pickle.dump(data,data_file)
     data_file.close()
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
-    log.error("pickle.dump to '%s'"%conf.data_file)
+    log.error("json.dump to '%s'"%conf.data_file)
+    print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
+    sys.exit(1)
     return False
   return True
 
@@ -1129,16 +1143,18 @@ def load_data():
   reset=False
   if os.path.exists(tmp_data_file):
     log.debug("Загружаем файл промежуточных данных: '%s'" % tmp_data_file)
-    data_file = open(tmp_data_file,'rb')
+    #data_file = open(tmp_data_file,'rb')
+    data_file = open(tmp_data_file,'r')
     try:
-      data=pickle.load(data_file)
+      #data=pickle.load(data_file)
+      data=json.loads(data_file.read())
       data_file.close()
       log.debug("Загрузили файл промежуточных данных: '%s'" % tmp_data_file)
+      if not "users" in data:
+        log.warning("Битый файл сессии - сброс")
+        reset=True
     except Exception as e:
       log.error(get_exception_traceback_descr(e))
-      log.warning("Битый файл сессии - сброс")
-      reset=True
-    if not "users" in data:
       log.warning("Битый файл сессии - сброс")
       reset=True
   else:

@@ -11,4 +11,7 @@ data_file="data.json"
 
 log_path="MatrixVkBot.log"
 
+# vk_app_id - идентификатор APP ID (числовое значение - см. документацию) - оставьте в None, если вы хотете, чтобы пользователи использовали свои vk_app_id:
+vk_app_id=None
+
 debug=True
