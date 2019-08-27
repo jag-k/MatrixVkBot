@@ -982,8 +982,11 @@ def get_dialogs(vk_id):
       for item in dialogs["items"]:
         # приводим к единообразию:
         if item["conversation"]["peer"]["type"]=="chat":
-          if item["conversation"]["chat_settings"]["state"]=="left":
+          if item["conversation"]["chat_settings"]["state"]=="left" or item["conversation"]["chat_settings"]["state"]=="kicked":
             # пропуск покинутых диалогов:
+            continue
+          if "members_count" not in item["conversation"]["chat_settings"]:
+            # пропуск пустых диалогов:
             continue
           elem={}
           elem["type"]="chat"
