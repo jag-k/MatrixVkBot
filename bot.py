@@ -978,6 +978,9 @@ def get_dialogs(vk_id):
       for item in dialogs["items"]:
         # приводим к единообразию:
         if item["conversation"]["peer"]["type"]=="chat":
+          if item["conversation"]["chat_settings"]["state"]=="left":
+            # пропуск покинутых диалогов:
+            continue
           elem={}
           elem["type"]="chat"
           elem["id"]=item["conversation"]["peer"]["id"]
