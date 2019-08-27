@@ -1212,6 +1212,24 @@ def create_room(matrix_uid, room_name, avatar_data=None):
       return None
   log.debug("New room created. room_id='%s'"%room.room_id)
 
+  # выставляем имя комнаты:
+  try:
+    room.set_room_name(room_name)
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("error set_room_name room_id='%s' to '%s'"%(room.room_id, room_name))
+
+  # выставляем аватар комнаты:
+  if avatar_data!=None:
+    log.debug("try set_matrix_room_avatar()")
+    ret_value=set_matrix_room_avatar(room.room_id,avatar_data)
+    log.debug("set_matrix_room_avatar() return:")
+    log.debug(ret_value)
+    if ret_value==None:
+      log.error("set_matrix_room_avatar()")
+    else:
+      log.info("success set room avatar")
+
   # приглашаем пользователя в комнату:
   try:
     response = client.api.invite_user(room.room_id,matrix_uid)
@@ -1236,24 +1254,6 @@ def create_room(matrix_uid, room_name, avatar_data=None):
       return None
     return None
   log.debug("success invite user '%s' to room '%s'"%(matrix_uid,room.room_id))
-
-  # выставляем имя комнаты:
-  try:
-    room.set_room_name(room_name)
-  except Exception as e:
-    log.error(get_exception_traceback_descr(e))
-    log.error("error set_room_name room_id='%s' to '%s'"%(room.room_id, room_name))
-
-  # выставляем аватар комнаты:
-  if avatar_data!=None:
-    log.debug("try set_matrix_room_avatar()")
-    ret_value=set_matrix_room_avatar(room.room_id,avatar_data)
-    log.debug("set_matrix_room_avatar() return:")
-    log.debug(ret_value)
-    if ret_value==None:
-      log.error("set_matrix_room_avatar()")
-    else:
-      log.info("success set room avatar")
 
   return room.room_id;
 
@@ -2649,9 +2649,13 @@ def vk_receiver_thread(user):
             if "chat_id" in m:
               # Групповой чат - добавляем имя отправителя:
               # Ищем отправителя в профилях полученного сообщения:
+              log.debug("try find user id = %d in profiles"%m["peer_id"])
               for profile in res["profiles"]:
                 if profile["peer_id"]==m["peer_id"]:
                   sender_name="<strong>%s %s:</strong> "%(profile["first_name"],profile["last_name"])
+              if sender_name == None:
+                log.warning("not found sender_name in profiles. Profiles was:")
+                log.debug(json.dumps(res["profiles"], indent=4, sort_keys=True,ensure_ascii=False))
 
             if proccess_vk_message(bot_control_room,room_id,user,sender_name,m) == False:
               log.warning("proccess_vk_message(room=%s) return false"%room_id)
