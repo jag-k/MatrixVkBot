@@ -2353,6 +2353,7 @@ def upload_file(content,content_type,filename=None):
   log.debug("upload file 1")
   ret=None
   try:
+    log.debug("size of data = %d"%len(content))
     log.debug("upload file 2")
     ret=client.upload(content,content_type)
     log.debug("upload file 3")
