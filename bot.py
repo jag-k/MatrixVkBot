@@ -511,6 +511,7 @@ def get_new_vk_messages_v2(user):
       res={}
       res["messages"] = msgs["items"]
       res["profiles"] = new["profiles"]
+      res["conversations"] = new["conversations"]
     return res
 
   except Exception as e:
@@ -562,11 +563,12 @@ def get_new_vk_messages(user):
       res={}
       res["messages"] = msgs["items"]
       res["profiles"] = new["profiles"]
+      res["conversations"] = new["conversations"]
     return res
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_new_vk_messages()")
-    bot_system_message(user,"ошибка получения сообщений из ВК. Ошибка работы с ВК-апи в функции get_new_vk_messages_v2()")
+    bot_system_message(user,"ошибка получения сообщений из ВК. Ошибка работы с ВК-апи в функции get_new_vk_messages()")
     return None
 
 
@@ -2548,6 +2550,11 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     log.error(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
     return False
 
+def get_message_chat_type(conversations,peer_id):
+  for conversation in conversations:
+    if conversation["peer"]["id"] == peer_id:
+      return conversation["peer"]["type"]
+  return None
 
 def vk_receiver_thread(user):
   global data
@@ -2566,6 +2573,9 @@ def vk_receiver_thread(user):
     while True:
       res=get_new_vk_messages_v2(user)
       if res != None:
+        log.debug("res=")
+        log.debug(json.dumps(res, indent=4, sort_keys=True,ensure_ascii=False))
+        conversations=res["conversations"]
         for m in res["messages"]:
           log.debug("Receive message from VK:")
           log.debug(json.dumps(m, indent=4, sort_keys=True,ensure_ascii=False))
@@ -2575,19 +2585,19 @@ def vk_receiver_thread(user):
               sender_name=None
               vk_room_id=m["peer_id"]
               # проверяем, групповой ли это чат:
-              if "chat_id" in m:
-                # групповой чат:
-                vk_room_id = m["chat_id"]
+              chat_type = get_message_chat_type(conversations, vk_room_id)
+              if chat_type == None:
+                log.error("get_message_chat_type(peer_id=%d)"%vk_room_id)
 
               if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == vk_room_id:
                 # нашли комнату:
                 found_room=True
                 # проверяем, групповой ли это чат:
-                if "chat_id" in m:
+                if chat_type == "chat":
                   # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
                   # Ищем отправителя в профилях полученного сообщения:
                   for profile in res["profiles"]:
-                    if profile["peer_id"]==m["peer_id"]:
+                    if profile["id"]==m["from_id"]:
                       sender_name="%s %s"%(profile["first_name"],profile["last_name"])
                 if proccess_vk_message(bot_control_room,room,user,sender_name,m) == False:
                   log.warning("proccess_vk_message(room=%s) return false"%(room))
