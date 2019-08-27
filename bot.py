@@ -273,7 +273,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       if found_room != None:
         # Такая комната уже существует!
         log.info("room already exist for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
-        send_message(room,"У Вас уже есть комната (%s), связанная с этим пользователме - не создаю повторную. Позже будет добавлен функционал по чистке такх комнат."%found_room)
+        send_message(room,"У Вас уже есть комната (%s), связанная с этим пользователем - не создаю повторную. Позже будет добавлен функционал по чистке такх комнат."%found_room)
         send_message(room,"Перешёл в режим команд")
         data["users"][user]["rooms"][room]["state"]="listen_command"
         return False
@@ -350,7 +350,7 @@ def update_user_info(user):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute update_user_info()")
-    bot_system_message(user,"внутренняя ошибка бота при получиении профиля пользователя в функции update_user_info()")
+    bot_system_message(user,"внутренняя ошибка бота при получении профиля пользователя в функции update_user_info()")
     return False
 
 def find_bridge_room(user,vk_room_id):
@@ -879,8 +879,8 @@ def dialogs_command(user,room,cmd):
     vk_id=session_data_vk["vk_id"]
     dialogs=get_dialogs(vk_id)
     if dialogs == None:
-      send_message(room,'Не смог получить спиоок бесед из ВК - попробуйте позже :-(')
-      bot_system_message(user,'Не смог получить спиоок бесед из ВК - попробуйте позже :-(')
+      send_message(room,'Не смог получить список бесед из ВК - попробуйте позже :-(')
+      bot_system_message(user,'Не смог получить список бесед из ВК - попробуйте позже :-(')
       log.error("get_dialogs() for user=%s"%user)
       bot_cancel_command(room,user)
       return False
@@ -905,7 +905,7 @@ def dialogs_command(user,room,cmd):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("create message with dialogs")
-    bot_system_message(user,'Не смог сформировать список спиоок бесед из ВК - попробуйте позже  или обратитесь к разработчику :-(')
+    bot_system_message(user,'Не смог сформировать список бесед из ВК - попробуйте позже или обратитесь к разработчику :-(')
     bot_cancel_command(room,user)
     return False
 
@@ -1083,7 +1083,7 @@ def login_command(user,room,cmd):
 
     # если не указан - спрашиваем у пользователя:
     if "vk_app_id" not in session_data_vk or session_data_vk["vk_app_id"]==None :
-      send_message(room,'Пройдите по ссылке https://vk.com/editapp?act=create и создаqnt своё Standalone-приложение, затем во вкладке Настройки переведите Состояние в "Приложение включено" и "видно всем", не забудьте сохранить изменения!')
+      send_message(room,'Пройдите по ссылке https://vk.com/editapp?act=create и создайте своё Standalone-приложение, затем во вкладке Настройки переведите Состояние в "Приложение включено" и "видно всем", не забудьте сохранить изменения!')
       send_message(room,'После этого скопируйте "ID приложения" в настройках у созданного перед этим приложения по ссылке https://vk.com/apps?act=manage  и пришлите мне сюда в чат. Я жду :-)')
       data["users"][user]["rooms"][room]["state"]="wait_vk_app_id"
     elif "vk_id" not in session_data_vk or session_data_vk["vk_id"]==None:
@@ -1492,7 +1492,7 @@ def on_invite(room, event):
           # Приглашение вступить в комнату:
           room = client.join_room(room)
           room.send_text("Спасибо за приглашение! Недеюсь быть Вам полезным. :-)")
-          room.send_text("Для справки по доступным командам - неберите: '!help' (или '!?', или '!h')")
+          room.send_text("Для справки по доступным командам - наберите: '!help' (или '!?', или '!h')")
           log.info("New user: '%s'"%user)
           # Прописываем системную группу для пользователя (группа, в которую будут сыпаться системные сообщения от бота и где он будет слушать команды):
           with lock:
@@ -2208,7 +2208,7 @@ def send_attachments(user,room,sender_name,attachments):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception in send_attachments()")
-    bot_system_message(user,"при разборе вложений - произошли ошибки. Сообщение не принято. Обратитесь к разработчику, проверьте сообщения в ВК")
+    bot_system_message(user,"при разборе вложений произошли ошибки. Сообщение не принято. Обратитесь к разработчику, проверьте сообщения в ВК")
     log.error("json of attachments:")
     log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return False
@@ -2461,7 +2461,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
             return False
         elif "attachments" in m:
           if send_notice_about_attachments(user,room,sender_name,m["attachments"])==False:
-            bot_system_message(user,'Ошибка: не смог отправить уведомления об отправленных мною же вложених"')
+            bot_system_message(user,'Ошибка: не смог отправить уведомления об отправленных мною же вложениях"')
         if "geo" in m:
           text="Вы отправили местоположение из другой клиентской программы"
           if send_notice(room,text) == False:
@@ -2512,7 +2512,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     if "geo" in m:
       if send_geo_to_matrix(room,sender_name,m["geo"])==False:
         send_message(room,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - см. логи')
-        bot_system_message(user,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - вложения были от: %s'%sender_name)
+        bot_system_message(user,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - местоположение было от: %s'%sender_name)
       else:
         send_status=True
     if send_status==False:
@@ -2584,7 +2584,7 @@ def vk_receiver_thread(user):
             dialogs=get_dialogs(data["users"][user]["vk"]["vk_id"])
             if dialogs == None:
               log.error("get_dialogs for user '%s'"%user)
-              bot_system_message(user,'Не смог получить спиоок бесед из ВК - поэтому не смог создать новую комнату в связи с пришедшикомнату попробуйте позже :-(')
+              bot_system_message(user,'Не смог получить список бесед из ВК, поэтому не смог создать новую, попробуйте позже :-(')
 
             cur_dialog=None
             if "chat_id" in m:
@@ -2598,7 +2598,7 @@ def vk_receiver_thread(user):
 
             if cur_dialog == None:
               log.error("can not found VK sender in dialogs - logic error - skip")
-              bot_system_message(user,"Не смог найти диалог для вновь-поступившего сообщения. vk_uid отправителя='%d'"%m["peer_id"])
+              bot_system_message(user,"Не смог найти диалог для вновь поступившего сообщения. vk_uid отправителя='%d'"%m["peer_id"])
               bot_system_message(user,"Сообщение было: '%s'"%m["text"])
               continue
 
@@ -2615,9 +2615,9 @@ def vk_receiver_thread(user):
             room_id=create_room(user,cur_dialog["title_ext"] + " (VK)",user_photo_image_data)
             if room_id==None:
               log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
-              bot_system_message(user,"Не смог создать дополнительную комнату в матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+              bot_system_message(user,"Не смог создать дополнительную комнату в Матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
               continue
-            bot_system_message(user,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+            bot_system_message(user,"Создал новую комнату Матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
             with lock:
               data["users"][user]["rooms"][room_id]={}
               data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
@@ -2655,7 +2655,7 @@ def vk_receiver_thread(user):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exceptions in vk_receiver_thread()")
-    bot_system_message(user,"при получении сообщения ВК (в функции vk_receiver_thread() )  - произошли ошибки. Не смог принять сообщения. Обратитесь к разработчику.")
+    bot_system_message(user,"при получении сообщения ВК (в функции vk_receiver_thread() ) произошли ошибки. Не смог принять сообщения. Обратитесь к разработчику.")
     return False
   return True
 
