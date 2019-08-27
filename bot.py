@@ -328,6 +328,10 @@ def update_user_info(user):
     data["users"][user]["vk"]["first_name"]=user_profile['first_name']
     data["users"][user]["vk"]["last_name"]=user_profile['last_name']
     dialogs=get_dialogs(vk_id)
+    if dialogs == None:
+      log.error("get_dialogs() for user=%s"%user)
+      bot_system_message(user,"внутренняя ошибка бота при получении списка диалогов пользователя в функции update_user_info()")
+      return False
     # ищем свой аккаунт по ФИО (иначе пока не знаю как получить свой ID):
     for user_id in dialogs["users"]:
       item=dialogs["users"][user_id]
@@ -2389,6 +2393,11 @@ def get_user_profile_by_uid(user,uid):
   try:
     log.debug("=start function=")
     dialogs=get_dialogs(data["users"][user]["vk"]["vk_id"])
+    if dialogs == None:
+      log.error("get_dialogs() for user=%s"%user)
+      bot_system_message(user,"внутренняя ошибка бота при получении списка диалогов пользователя в функции get_user_profile_by_uid()")
+      return None
+      
     if uid in dialogs["users"]:
       return dialogs["users"][uid]
     else:
@@ -2587,7 +2596,10 @@ def vk_receiver_thread(user):
             dialogs=get_dialogs(data["users"][user]["vk"]["vk_id"])
             if dialogs == None:
               log.error("get_dialogs for user '%s'"%user)
-              bot_system_message(user,'Не смог получить список бесед из ВК, поэтому не смог создать новую, попробуйте позже :-(')
+              bot_system_message(user,'Не смог получить список бесед из ВК (обратитесь к разработчику), поэтому не смог создать новую комнату для связи с новым диалогом, попробуйте позже :-(')
+              bot_system_message(user,"vk_uid отправителя='%d'"%m["peer_id"])
+              bot_system_message(user,"Сообщение было: '%s'"%m["text"])
+              continue
 
             cur_dialog=None
             if "chat_id" in m:
