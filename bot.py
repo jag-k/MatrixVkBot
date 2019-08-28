@@ -158,14 +158,19 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
           log.error("error vk_send_text() for user %s"%user)
           send_message(room,"не смог отправить сообщение в ВК - ошибка АПИ")
           return False
-      # Сохраняем последнюю введённую пользователем команду:
+
+      # Сохраняем message_id, полученный от ВК, когда мы отправили сообщение из матрицы в ВК:
       try:
-        log.debug("set last message id as: %d"%message_id)
+        log.debug("add last message id as: %d"%message_id)
       except:
         log.error("message_id not int!")
         log.error("message_id=")
         log.error(message_id)
-      data["users"][user]["rooms"][room]["last_matrix_owner_message"]=message_id
+        return False
+      if save_message_id(user,room,message_id) == False:
+        log.error("save_message_id()")
+        bot_system_message(user,'Ошибка: не смог сохранить идентификатор отправленного сообщения - внутренняя ошибка бота')
+        return False
       return True
 
     # Комната управления:
@@ -309,7 +314,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
         return False
       send_message(room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
       data["users"][user]["rooms"][room_id]={}
-      data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=None
+      data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=[]
       data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
       data["users"][user]["rooms"][room_id]["state"]="dialog"
       # сохраняем на диск:
@@ -321,6 +326,45 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute process_command()")
     bot_system_message(user,"внутренняя ошибка бота при обработке команды в функции process_command()")
+    return False
+
+# сохраняем message_id в списке отправленных нами сообщений:
+def save_message_id(user,room,message_id):
+  global log
+  global data
+  try:
+    # уточнение типа:
+    if isinstance(data["users"][user]["rooms"][room]["last_matrix_owner_message"], list) == False:
+      data["users"][user]["rooms"][room]["last_matrix_owner_message"]=[]
+    cur_m_list=data["users"][user]["rooms"][room]["last_matrix_owner_message"]
+    cur_m_list.append(message_id)
+    # ограничиваем список запомненных сообщений 30-ю:
+    s=len(cur_m_list)
+    if s > 30:
+      delta=s-30
+      cur_m_list=cur_m_list[delta:]
+    data["users"][user]["rooms"][room]["last_matrix_owner_message"]=cur_m_list
+  except:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute save_message_id()")
+    return False
+  return True
+
+# проверяем наличие message_id в списке ранее отправленных нами сообщений:
+def check_own_message_id(user,room,message_id):
+  global log
+  global data
+  try:
+    # уточнение типа:
+    if isinstance(data["users"][user]["rooms"][room]["last_matrix_owner_message"], list) == False:
+      data["users"][user]["rooms"][room]["last_matrix_owner_message"]=[]
+    if message_id in data["users"][user]["rooms"][room]["last_matrix_owner_message"]:
+      return True
+    else:
+      return False
+  except:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute check_own_message_id()")
     return False
 
 def update_user_info(user):
@@ -2464,16 +2508,15 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
   try:
     log.debug("=start function=")
     send_status=False
-    owner_message=False
-    with lock:
-      last_matrix_owner_message=data["users"][user]["rooms"][room]["last_matrix_owner_message"]
+    own_message=False
     text=""
     # Сообщение от нашей учётки в ВК:
     if m["out"]==1:
       log.debug("receive our message")
-      owner_message=True
-      if m["id"] == last_matrix_owner_message:
-        # id такой же, какой мы отправляли последний раз в этот диалог из матрицы - не отображаем его:
+      with lock:
+        own_message=check_own_message_id(user,room,m["id"])
+      if own_message == True:
+        # id такой же, какой мы отправляли последнее время в этот диалог из матрицы - не отображаем его:
         log.debug("receive from vk our text, sended from matrix - skip it")
         return True
       else:
@@ -2572,7 +2615,6 @@ def vk_receiver_thread(user):
     log.info("start new vk_receiver_thread() for user='%s'"%user)
     # Обновляем временные метки:
     session = get_session(data["users"][user]["vk"]["vk_id"])
-    last_matrix_owner_message=None
     with lock:
       data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
       bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
@@ -2658,7 +2700,7 @@ def vk_receiver_thread(user):
               data["users"][user]["rooms"][room_id]={}
               data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
               data["users"][user]["rooms"][room_id]["state"]="dialog"
-              data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=None
+              data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=[]
               # сохраняем на диск:
               save_data(data)
             # отправляем текст во вновь созданную комнату:
