@@ -106,7 +106,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
             bot_system_message(user,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             return False
-          if vk_send_photo(session_data_vk["vk_id"],dialog["id"],cmd,photo_data,dialog["type"]) == False:
+          message_id=vk_send_photo(session_data_vk["vk_id"],dialog["id"],cmd,photo_data,dialog["type"])
+          if message_id == None:
             log.error("error vk_send_photo() for user %s"%user)
             send_message(room,"не смог отправить фото в ВК - ошибка АПИ")
             return False
@@ -118,7 +119,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
             bot_system_message(user,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             return False
-          if vk_send_video(session_data_vk["vk_id"],dialog["id"],cmd,video_data,dialog["type"]) == False:
+          message_id=vk_send_video(session_data_vk["vk_id"],dialog["id"],cmd,video_data,dialog["type"])
+          if message_id == None:
             log.error("error vk_send_video() for user %s"%user)
             send_message(room,"не смог отправить видео в ВК - ошибка АПИ")
             return False
@@ -130,7 +132,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
             bot_system_message(user,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             return False
-          if vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,audio_data,dialog["type"]) == False:
+          message_id=vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,audio_data,dialog["type"])
+          if message_id == None:
             log.error("error vk_send_doc() for user %s"%user)
             send_message(room,"не смог отправить аудио в ВК - ошибка АПИ")
             return False
@@ -143,19 +146,26 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
             bot_system_message(user,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             send_message(room,'Ошибка: не смог получить вложение из матрицы по mxurl=%s'%file_url)
             return False
-          if vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,doc_data,dialog["type"]) == False:
+          message_id=vk_send_doc(session_data_vk["vk_id"],dialog["id"],cmd,doc_data,dialog["type"])
+          if message_id == None:
             log.error("error vk_send_doc() for user %s"%user)
             send_message(room,"не смог отправить файл в ВК - ошибка АПИ")
             return False
       else:
         # отправка текста:
-        if vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["type"]) == False:
+        message_id=vk_send_text(session_data_vk["vk_id"],dialog["id"],cmd,dialog["type"])
+        if message_id == None:
           log.error("error vk_send_text() for user %s"%user)
           send_message(room,"не смог отправить сообщение в ВК - ошибка АПИ")
           return False
       # Сохраняем последнюю введённую пользователем команду:
-      log.debug("set last message as: %s"%cmd)
-      data["users"][user]["rooms"][room]["last_matrix_owner_message"]=cmd
+      try:
+        log.debug("set last message id as: %d"%message_id)
+      except:
+        log.error("message_id not int!")
+        log.error("message_id=")
+        log.error(message_id)
+      data["users"][user]["rooms"][room]["last_matrix_owner_message"]=message_id
       return True
 
     # Комната управления:
@@ -299,7 +309,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
         return False
       send_message(room,"Создал новую комнату матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
       data["users"][user]["rooms"][room_id]={}
-      data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=""
+      data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=None
       data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
       data["users"][user]["rooms"][room_id]["state"]="dialog"
       # сохраняем на диск:
@@ -625,24 +635,27 @@ def info_extractor(info):
 
 def vk_send_text(vk_id, chat_id, message, chat_type="user", forward_messages=None):
   global log
+  message_id=None
   try:
     log.debug("=start function=")
     random_id=random.randint(0,4294967296)
     session = get_session(vk_id)
     api = vk.API(session, v=VK_API_VERSION)
     if chat_type!="user":
-      api.messages.send(peer_id=chat_id, random_id=random_id,  message=message, forward_messages=forward_messages)
+      message_id=api.messages.send(peer_id=chat_id, random_id=random_id,  message=message, forward_messages=forward_messages)
     else:
-      api.messages.send(user_id=chat_id, random_id=random_id, message=message, forward_messages=forward_messages)
+      message_id=api.messages.send(user_id=chat_id, random_id=random_id, message=message, forward_messages=forward_messages)
+    # message_id содержит ID отправленного сообщения
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_text()")
     log.error("vk_send_text API or network error")
-    return False
-  return True
+    return None
+  return message_id
 
 def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
   global log
+  message_id=None
   try:
     log.debug("=start function=")
     random_id=random.randint(0,4294967296)
@@ -659,23 +672,21 @@ def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
     if chat_type!="user":
-      ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
-      log.debug("api.messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
     else:
-      ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
-      log.debug("api.messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
+    log.debug("api.messages.send return:")
+    log.debug(message_id)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_video()")
     log.error("vk_send_video API or network error")
-    return False
-  return True
+    return None
+  return message_id
 
-# TODO доделать отправку аудио
 def vk_send_audio(vk_id, chat_id, name, audio_data, chat_type="user"):
   global log
+  message_id=None
   try:
     log.debug("=start function=")
     random_id=random.randint(0,4294967296)
@@ -693,22 +704,21 @@ def vk_send_audio(vk_id, chat_id, name, audio_data, chat_type="user"):
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
     if chat_type!="user":
-      ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
-      log.debug("api.messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
     else:
-      ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
-      log.debug("api.messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=(attachment_str))
+    log.debug("api.messages.send return:")
+    log.debug(message_id)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_audio()")
     log.error("vk_send_video API or network error")
-    return False
-  return True
+    return None
+  return message_id
 
 def vk_send_doc(vk_id, chat_id, name, doc_data, chat_type="user"):
   global log
+  message_id=None
   try:
     log.debug("=start function=")
     random_id=random.randint(0,4294967296)
@@ -729,22 +739,21 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, chat_type="user"):
     log.debug(response)
     attachment_str="doc%d_%d"%(response['doc']['owner_id'],response['doc']['id'])
     if chat_type!="user":
-      ret=api.messages.send(chat_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
-      log.debug("api..messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(chat_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
     else:
-      ret=api.messages.send(user_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
-      log.debug("api..messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(user_id=chat_id,random_id=random_id, message=name,attachment=(attachment_str))
+    log.debug("api..messages.send return:")
+    log.debug(message_id)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_doc()")
     log.error("vk_send_doc API or network error")
-    return False
-  return True
+    return None
+  return message_id
 
 def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
   global log
+  message_id=None
   log.debug("=start function=")
   random_id=random.randint(0,4294967296)
   try:
@@ -766,19 +775,17 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
     attachment="photo%(owner_id)d_%(media_id)d"%{"owner_id":response[0]["owner_id"],"media_id":response[0]["id"]}
     log.debug("attachment=%s"%attachment)
     if chat_type!="user":
-      ret=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=attachment)
-      log.debug("api..messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(chat_id=chat_id, random_id=random_id, message=name,attachment=attachment)
     else:
-      ret=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=attachment)
-      log.debug("api..messages.send return:")
-      log.debug(ret)
+      message_id=api.messages.send(user_id=chat_id, random_id=random_id, message=name,attachment=attachment)
+    log.debug("api..messages.send return:")
+    log.debug(message_id)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_send_photo()")
     log.error("vk_send_photo API or network error")
-    return False
-  return True
+    return None
+  return message_id
 
 def delete_room_association(user,room,cmd):
   global log
@@ -2465,8 +2472,8 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     if m["out"]==1:
       log.debug("receive our message")
       owner_message=True
-      if check_equal_messages(m["text"],last_matrix_owner_message) and len(last_matrix_owner_message)>0:
-        # текст такой же, какой мы отправляли последний раз в эту комнату из матрицы - не отображаем его:
+      if m["id"] == last_matrix_owner_message:
+        # id такой же, какой мы отправляли последний раз в этот диалог из матрицы - не отображаем его:
         log.debug("receive from vk our text, sended from matrix - skip it")
         return True
       else:
@@ -2651,7 +2658,7 @@ def vk_receiver_thread(user):
               data["users"][user]["rooms"][room_id]={}
               data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
               data["users"][user]["rooms"][room_id]["state"]="dialog"
-              data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=""
+              data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=None
               # сохраняем на диск:
               save_data(data)
             # отправляем текст во вновь созданную комнату:
@@ -2718,7 +2725,7 @@ def vk_get_user_photo_url(session, user_id):
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute vk_get_user_photo()")
-    log.error("vk_send_text API or network error")
+    log.error("API or network error")
     return None
   return url
 
