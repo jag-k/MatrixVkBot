@@ -1990,7 +1990,7 @@ def send_stiker_to_matrix(room,sender_name,attachment):
       return False
     log.debug("send file 1")
     if "sticker_id" in attachment["sticker"]:
-      file_name=attachment["sticker"]["sticker_id"]
+      file_name=str(attachment["sticker"]["sticker_id"])
     else:
       file_name=get_name_from_url(src)
 
