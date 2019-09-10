@@ -61,7 +61,9 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 
     if reply_to_id!=None and format_type=="org.matrix.custom.html" and formated_message!=None:
       # разбираем, чтобы получить исходное сообщение и ответ
+      log.debug("formated_message=%s"%formated_message)
       source_message=re.sub('<mx-reply><blockquote>.*<\/a><br>','', formated_message)
+      source_message=re.sub('<mx-reply><blockquote>.*<\/a><br />','', source_message)
       source_message=re.sub('</blockquote></mx-reply>.*','', source_message)
       source_cmd=re.sub(r'.*</blockquote></mx-reply>','', formated_message.replace('\n',''))
       log.debug("source=%s"%source_message)
@@ -1456,8 +1458,8 @@ def on_message(event):
     file_url=None
     file_type=None
 
-    #print("new MATRIX message:")
-    #print(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
+    log.debug("new MATRIX message:")
+    log.debug(json.dumps(event, indent=4, sort_keys=True,ensure_ascii=False))
     if event['type'] == "m.room.member":
         # join:
         if event['content']['membership'] == "join":
@@ -1527,7 +1529,9 @@ def on_message(event):
             return False
         log.debug("success lock() before access global data")
     else:
-      print(event['type'])
+      log.warning("unknown type of event:")
+      log.warning(event['type'])
+      return False
     return True
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
