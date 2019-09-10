@@ -1981,7 +1981,7 @@ def send_stiker_to_matrix(room,sender_name,attachment):
       return False
 
     # TODO добавить определение типа:
-    mimetype="image/jpeg"
+    mimetype="image/png"
     size=len(image_data)
       
     mxc_url=upload_file(image_data,mimetype)
