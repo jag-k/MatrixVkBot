@@ -441,13 +441,16 @@ def get_new_vk_messages_v2(user):
     key=""
     session=""
     ts=0
+    log.debug("try lock() before access global data()")
     with lock:
+      log.debug("success lock() before access global data")
       if "server" in data["users"][user]["vk"]:
         server=data["users"][user]["vk"]["server"]
       if "ts_polling" in data["users"][user]["vk"]:
         ts=data["users"][user]["vk"]["ts_polling"]
       if "key" in data["users"][user]["vk"]:
         key=data["users"][user]["vk"]["key"]
+    log.debug("release lock() after access global data")
     exit_flag=False
     while True:
       try:
@@ -469,9 +472,12 @@ def get_new_vk_messages_v2(user):
           log.warning("'No 'updates' in ret'")
           raise Exception("No 'updates' in ret")
         ts=ret["ts"]
+        log.debug("try lock() before access global data()")
         with lock:
+          log.debug("success lock() before access global data")
           data["users"][user]["vk"]["ts_polling"]=ts
           data["users"][user]["vk"]["ts_check_poll"]=int(time.time())
+        log.debug("release lock() after access global data")
         #log.debug("ret=")
         #log.debug(json.dumps(ret, indent=4, sort_keys=True,ensure_ascii=False))
       except:
@@ -484,12 +490,15 @@ def get_new_vk_messages_v2(user):
         ts=response["ts"]
         key=response["key"]
         server=response["server"]
+        log.debug("try lock() before access global data()")
         with lock:
+          log.debug("success lock() before access global data")
           #data["users"][user]["vk"]["ts"]=ts
           data["users"][user]["vk"]["server"]=server
           data["users"][user]["vk"]["key"]=key
           data["users"][user]["vk"]["ts_polling"]=ts
-        save_data(data)
+          save_data(data)
+        log.debug("release lock() after access global data")
         continue
 
       # ищем нужные нам события (новые сообщения), типы всех событий описаны вот тут: https://vk.com/dev/using_longpoll_2
@@ -513,9 +522,12 @@ def get_new_vk_messages_v2(user):
 
       # Проверка на необходимость выйти из потока:
       exit_flag=False
+      log.debug("try lock() before access global data()")
       with lock:
+        log.debug("success lock() before access global data")
         if "exit" in data["users"][user]["vk"]:
           exit_flag=data["users"][user]["vk"]["exit"]
+      log.debug("release lock() after access global data")
       log.debug("thread: exit_flag=%d"%int(exit_flag))
       if exit_flag==True:
         log.info("get command to close thread for user %s - exit from thread..."%user)
@@ -542,8 +554,11 @@ def get_new_vk_messages_v2(user):
       timeout = 3
       log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
       time.sleep(timeout)
+      log.debug("try lock() before access global data()")
       with lock:
+        log.debug("success lock() before access global data")
         data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+      log.debug("release lock() after access global data")
       new = api.messages.getLongPollHistory(
           ts=data["users"][user]["vk"]["ts"],\
           pts=data["users"][user]["vk"]["pts"],\
@@ -554,8 +569,11 @@ def get_new_vk_messages_v2(user):
     log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
 
     msgs = new['messages']
+    log.debug("try lock() before access global data()")
     with lock:
+      log.debug("success lock() before access global data")
       data["users"][user]["vk"]["pts"] = new["new_pts"]
+    log.debug("release lock() after access global data")
     count = msgs["count"]
 
     res = None
@@ -597,8 +615,11 @@ def get_new_vk_messages(user):
       timeout = 3
       log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
       time.sleep(timeout)
+      log.debug("try lock() before access global data()")
       with lock:
+        log.debug("success lock() before access global data")
         data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+      log.debug("release lock() after access global data")
       ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
       new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
 
@@ -606,8 +627,11 @@ def get_new_vk_messages(user):
     log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
 
     msgs = new['messages']
+    log.debug("try lock() before access global data()")
     with lock:
+      log.debug("success lock() before access global data")
       data["users"][user]["vk"]["pts"] = new["new_pts"]
+    log.debug("release lock() after access global data")
     count = msgs["count"]
 
     res = None
@@ -1439,10 +1463,12 @@ def on_message(event):
         elif event['content']['membership'] == "leave":
             log.info("{0} leave".format(event['sender']))
             # close room:
+            log.debug("try lock() before access global data()")
             with lock:
               log.debug("success lock before process_command()")
               if close_dialog(event['sender'],event['room_id']) == False:
                 log.warning("close_dialog()==False")
+            log.debug("release lock() after access global data")
         return True
     elif event['type'] == "m.room.message":
         if event['content']['msgtype'] == "m.text":
@@ -1496,6 +1522,7 @@ def on_message(event):
             ) == False:
             log.error("error process command: '%s'"%event['content']["body"])
             return False
+        log.debug("success lock() before access global data")
     else:
       print(event['type'])
     return True
@@ -1558,7 +1585,9 @@ def on_invite(room, event):
           room.send_text("Для справки по доступным командам - наберите: '!help' (или '!?', или '!h')")
           log.info("New user: '%s'"%user)
           # Прописываем системную группу для пользователя (группа, в которую будут сыпаться системные сообщения от бота и где он будет слушать команды):
+          log.debug("try lock() before access global data()")
           with lock:
+            log.debug("success lock() before access global data")
             if "users" not in data:
               data["users"]={}
             if user not in data["users"]:
@@ -1568,6 +1597,7 @@ def on_invite(room, event):
             if "control_room" not in data["users"][user]["matrix_bot_data"]:
               data["users"][user]["matrix_bot_data"]["control_room"]=room.room_id
             save_data(data)
+          log.debug("release lock() after access global data")
 
 def exception_handler(e):
   global client
@@ -1586,10 +1616,11 @@ def main():
 
   lock = threading.RLock()
 
-  log.debug("try lock before main load_data()")
+  log.debug("try lock() before access global data()")
   with lock:
-    log.debug("success lock before main load_data()")
+    log.debug("success lock() before access global data")
     data=load_data()
+  log.debug("release lock() after access global data")
 
   log.info("try init matrix-client")
   client = MatrixClient(conf.server)
@@ -1666,24 +1697,36 @@ def check_bot_status():
           prev_connection_status=data["users"][user]["vk"]["connection_status"]
         if "ts_check_poll" in user_data["vk"]:
           ts_check_poll=0
+          log.debug("try lock() before access global data()")
           with lock:
+            log.debug("success lock() before access global data")
             ts_check_poll=user_data["vk"]["ts_check_poll"] 
+          log.debug("release lock() after access global data")
           delta=cur_ts-ts_check_poll
           log.debug("delta=%d"%delta)
           if delta > 600:
+            log.debug("try lock() before access global data()")
             with lock:
+              log.debug("success lock() before access global data")
               data["users"][user]["vk"]["connection_status"]="error"
               data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK - пробую переподключиться"
               data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
+            log.debug("release lock() after access global data")
             # Задача на переподключение:
             time.sleep(240) # ждём на всякий случай:
+            log.debug("try lock() before access global data()")
             with lock:
+              log.debug("success lock() before access global data")
               data["users"][user]["vk"]["exit"]=True
+            log.debug("release lock() after access global data")
           else:
+            log.debug("try lock() before access global data()")
             with lock:
+              log.debug("success lock() before access global data")
               data["users"][user]["vk"]["connection_status"]="success"
               data["users"][user]["vk"]["connection_status_descr"]="нет ошибок"
               data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
+            log.debug("release lock() after access global data")
         if "connection_status" in data["users"][user]["vk"]:
           if prev_connection_status!=data["users"][user]["vk"]["connection_status"]:
             change_flag=True
@@ -1701,7 +1744,6 @@ def check_thread_exist(vk_id):
   global log
   try:
     log.debug("=start function=")
-    log.debug("=start function=")
     for th in threading.enumerate():
         if th.getName() == 'vk' + str(vk_id):
             return True
@@ -1718,26 +1760,27 @@ def start_vk_polls():
   global log
   try:
     log.debug("=start function=")
-
     started=0
-    
-    with lock:
-      for user in data["users"]:
-        if "vk" in data["users"][user] and "vk_id" in data["users"][user]["vk"]:
+    for user in data["users"]:
+      if "vk" in data["users"][user] and "vk_id" in data["users"][user]["vk"]:
+        log.debug("try lock() before access global data()")
+        with lock:
+          log.debug("success lock() before access global data")
           vk_data=data["users"][user]["vk"]
           vk_id=data["users"][user]["vk"]["vk_id"]
-          if check_thread_exist(vk_id) == False:
-            log.info("no thread for user '%s' with name: '%s' - try start new tread"%(user,"vk"+str(vk_id)))
-            bot_system_message(user,"Не обнаружил потока, слушающего сообщения для пользователя '%s' и его VK id='%s'"%(user,str(vk_id)))
-            # обновляем информацию о пользователе:
-            if update_user_info(user) == False:
-              log.error("update_user_info")
-            bot_system_message(user,"Запускаю процесс получения сообщений из ВК...")
-            t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
-            t.setDaemon(True)
-            t.start()
-            started+=1
-            bot_system_message(user,"Успешно запустил процесс получения сообщений из ВК.")
+        log.debug("release lock() after access global data")
+        if check_thread_exist(vk_id) == False:
+          log.info("no thread for user '%s' with name: '%s' - try start new tread"%(user,"vk"+str(vk_id)))
+          bot_system_message(user,"Не обнаружил потока, слушающего сообщения для пользователя '%s' и его VK id='%s'"%(user,str(vk_id)))
+          # обновляем информацию о пользователе:
+          if update_user_info(user) == False:
+            log.error("update_user_info")
+          bot_system_message(user,"Запускаю процесс получения сообщений из ВК...")
+          t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
+          t.setDaemon(True)
+          t.start()
+          started+=1
+          bot_system_message(user,"Успешно запустил процесс получения сообщений из ВК.")
     return started
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
@@ -2513,8 +2556,11 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     # Сообщение от нашей учётки в ВК:
     if m["out"]==1:
       log.debug("receive our message")
+      log.debug("try lock() before access global data()")
       with lock:
+        log.debug("success lock() before access global data")
         own_message=check_own_message_id(user,room,m["id"])
+      log.debug("release lock() after access global data")
       if own_message == True:
         # id такой же, какой мы отправляли последнее время в этот диалог из матрицы - не отображаем его:
         log.debug("receive from vk our text, sended from matrix - skip it")
@@ -2614,10 +2660,18 @@ def vk_receiver_thread(user):
     log.debug("=start function=")
     log.info("start new vk_receiver_thread() for user='%s'"%user)
     # Обновляем временные метки:
-    session = get_session(data["users"][user]["vk"]["vk_id"])
+    log.debug("try lock() before access global data()")
     with lock:
+      log.debug("success lock() before access global data")
+      vk_id=data["users"][user]["vk"]["vk_id"]
+    log.debug("release lock() after access global data")
+    session = get_session(vk_id)
+    log.debug("try lock() before access global data()")
+    with lock:
+      log.debug("success lock() before access global data")
       data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
       bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
+    log.debug("release lock() after access global data")
 
     while True:
       res=get_new_vk_messages_v2(user)
@@ -2696,13 +2750,16 @@ def vk_receiver_thread(user):
               bot_system_message(user,"Не смог создать дополнительную комнату в Матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
               continue
             bot_system_message(user,"Создал новую комнату Матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+            log.debug("try lock() before access global data()")
             with lock:
+              log.debug("success lock() before access global data")
               data["users"][user]["rooms"][room_id]={}
               data["users"][user]["rooms"][room_id]["cur_dialog"]=cur_dialog
               data["users"][user]["rooms"][room_id]["state"]="dialog"
               data["users"][user]["rooms"][room_id]["last_matrix_owner_message"]=[]
               # сохраняем на диск:
               save_data(data)
+            log.debug("release lock() after access global data")
             # отправляем текст во вновь созданную комнату:
             sender_name=None
             if "chat_id" in m:
@@ -2721,11 +2778,14 @@ def vk_receiver_thread(user):
 
       # Проверка на необходимость выйти:
       exit_flag=False
+      log.debug("try lock() before access global data()")
       with lock:
+        log.debug("success lock() before access global data")
         if "exit" in data["users"][user]["vk"]:
           exit_flag=data["users"][user]["vk"]["exit"]
         if exit_flag==True:
           data["users"][user]["vk"]["exit"]=False
+      log.debug("release lock() after access global data")
       log.debug("thread: exit_flag=%d"%int(exit_flag))
       if exit_flag==True:
         log.info("get command to close thread for user %s - exit from thread..."%user)
