@@ -999,7 +999,7 @@ def bot_system_message(user,message,notice=False):
     log.info(message)
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
     if notice:
-      return send_notice(bot_control_room,message):
+      return send_notice(bot_control_room,message)
     else:
       return send_message(bot_control_room,message)
   except Exception as e:
