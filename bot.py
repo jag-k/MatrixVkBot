@@ -1960,6 +1960,52 @@ def send_geo_to_matrix(room,sender_name,geo):
     return False
 
 
+def send_stiker_to_matrix(room,sender_name,attachment):
+  global log
+  try:
+    log.debug("=start function=")
+    image_data=get_image_url_from_stiker_attachment(attachment)
+    if image_data == None:
+      log.error("get src for photo")
+      log.error(attachment["photo"])
+      return False
+    src=image_data["url"]
+    height=image_data["height"]
+    width=image_data["width"]
+    
+    image_data=get_data_from_url(src)
+    if image_data==None:
+      log.error("get image from url: %s"%src)
+      return False
+
+    # TODO добавить определение типа:
+    mimetype="image/jpeg"
+    size=len(image_data)
+      
+    mxc_url=upload_file(image_data,mimetype)
+    if mxc_url == None:
+      log.error("uload file to matrix server")
+      return False
+    log.debug("send file 1")
+    if "sticker_id" in attachment["sticker"]:
+      file_name=attachment["sticker"]["sticker_id"]
+    else:
+      file_name=get_name_from_url(src)
+
+    if sender_name!=None:
+      file_name=sender_name+' прислал стикер: '+file_name
+
+    if matrix_send_image(room,mxc_url,file_name,mimetype,height,width,size) == False:
+      log.error("send file to room")
+      return False
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at parse attachemt '%s': %s"%(attachment["type"],e))
+    log.error("json of attachment:")
+    log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
+    return False
+  return True
+
 def send_photo_to_matrix(room,sender_name,attachment):
   global log
   try:
@@ -2276,6 +2322,11 @@ def send_attachments(user,room,sender_name,attachments):
           log.error("send_photo_to_matrix()")
           bot_system_message(user,"при разборе вложений с типом '%s' - произошли ошибки"%attachment["type"])
           success_status=False
+      if attachment["type"]=="sticker":
+        if send_stiker_to_matrix(room,sender_name,attachment)==False:
+          log.error("send_photo_to_matrix()")
+          bot_system_message(user,"при разборе вложений с типом '%s' - произошли ошибки"%attachment["type"])
+          success_status=False
       # Отправляем звуковой файл:
       elif attachment["type"]=="audio":
         if send_audio_to_matrix(room,sender_name,attachment)==False:
@@ -2513,6 +2564,42 @@ def get_user_profile_by_uid(user,uid):
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_user_profile_by_uid()")
     bot_system_message(user,"внутренняя ошибка бота")
+    return None
+
+def get_image_url_from_stiker_attachment(attachment):
+  global log
+  try:
+    log.debug("=start function=")
+    if "images" not in attachment["sticker"]:
+      log.error("parse sticker attachment - not found tag 'images'")
+      log.error(attachment["sticker"])
+      return None
+    # находим самый большой размер изображения:
+    width=0
+    height=0
+    src=None
+    data_item=None
+    for item in attachment["sticker"]["images"]:
+      if item["width"] > width:
+        width=item["width"]
+        height=item["height"]
+        src=item["url"]
+        data_item=item
+        continue
+      if item["height"] > height:
+        width=item["width"]
+        height=item["height"]
+        src=item["url"]
+        data_item=item
+    if data_item == None:
+      log.error("get src for sticker")
+      log.error(attachment["sticker"])
+    return data_item
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exceptions get_image_url_from_stiker_attachment()")
+    log.error("json of attachment:")
+    log.error(json.dumps(attachment, indent=4, sort_keys=True,ensure_ascii=False))
     return None
 
 def get_photo_url_from_photo_attachment(attachment):
