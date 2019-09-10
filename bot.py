@@ -1994,11 +1994,12 @@ def send_stiker_to_matrix(room,sender_name,attachment):
     else:
       file_name=get_name_from_url(src)
 
+    file_name=file_name+".png"
+
     if sender_name!=None:
       file_name=sender_name+' прислал стикер: '+file_name
 
     log.debug("file_name=%s"%file_name)
-    file_name="1.png"
 
     if matrix_send_image(room,mxc_url,file_name,mimetype,height,width,size) == False:
       log.error("send file to room")
