@@ -2668,7 +2668,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
       else:
         # Это наше сообщение, но отправлено из другой клиентской программы. Шлём просто текст, но через m.notice, чтобы не дилинькал клиент:
         if len(m["text"])!=0:
-          text="Ваша реплика:\n" + m["text"]
+          text="Вы: " + m["text"]
           if send_notice(room,text) == False:
             log.error("send_notice(%s)"%text)
             bot_system_message(user,"не смог отправить копию сообщения в комнату %s от самого себя (из ВК)"%room)
