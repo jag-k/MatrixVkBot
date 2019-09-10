@@ -2460,9 +2460,9 @@ def matrix_send_image(room_id,url,name,mimetype,height=None,width=None,size=None
     #ret=room.send_image(url,name)
     log.debug("send file 3")
   except MatrixRequestError as e:
-    print(e)
+    log.error(e)
     if e.code == 400:
-      log.error("ERROR send image with mxurl=%s"%url)
+      log.error("ERROR 400 send image with mxurl=%s"%url)
       return False
     else:
       log.error("Couldn't send image (unknown error) with mxurl=%s"%url)
