@@ -1973,7 +1973,7 @@ def send_stiker_to_matrix(room,sender_name,attachment):
     height=image_data["height"]
     width=image_data["width"]
 
-    log.debug("url=%s"%url)
+    log.debug("url=%s"%src)
     
     image_data=get_data_from_url(src)
     if image_data==None:
