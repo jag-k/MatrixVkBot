@@ -990,7 +990,7 @@ def dialogs_command(user,room,cmd):
     bot_cancel_command(room,user)
     return False
 
-def bot_system_message(user,message):
+def bot_system_message(user,message,notice=False):
   global log
   global lock
   global data
@@ -998,7 +998,10 @@ def bot_system_message(user,message):
     log.debug("=start function=")
     log.info(message)
     bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
-    return send_message(bot_control_room,message)
+    if notice:
+      return send_notice(bot_control_room,message):
+    else:
+      return send_message(bot_control_room,message)
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute bot_system_message()")
@@ -2749,7 +2752,7 @@ def vk_receiver_thread(user):
               log.error("error create_room() for user '%s' for vk-dialog with vk-id '%d' ('%s')"%(user,cur_dialog["id"],cur_dialog["title"]))
               bot_system_message(user,"Не смог создать дополнительную комнату в Матрице: '%s' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
               continue
-            bot_system_message(user,"Создал новую комнату Матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"])
+            bot_system_message(user,"Создал новую комнату Матрицы с именем: '%s (VK)' связанную с одноимённым диалогом в ВК"%cur_dialog["title"],notice=True)
             log.debug("try lock() before access global data()")
             with lock:
               log.debug("success lock() before access global data")
