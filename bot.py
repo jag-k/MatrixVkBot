@@ -2328,7 +2328,7 @@ def send_attachments(user,room,sender_name,attachments):
           log.error("send_photo_to_matrix()")
           bot_system_message(user,"при разборе вложений с типом '%s' - произошли ошибки"%attachment["type"])
           success_status=False
-      if attachment["type"]=="sticker":
+      elif attachment["type"]=="sticker":
         if send_stiker_to_matrix(room,sender_name,attachment)==False:
           log.error("send_photo_to_matrix()")
           bot_system_message(user,"при разборе вложений с типом '%s' - произошли ошибки"%attachment["type"])
