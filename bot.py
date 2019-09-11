@@ -2902,6 +2902,8 @@ def vk_receiver_thread(user):
                       sender_name="%s %s"%(profile["first_name"],profile["last_name"])
                 if proccess_vk_message(bot_control_room,room,user,sender_name,m) == False:
                   log.warning("proccess_vk_message(room=%s) return false"%(room))
+                # комнату нашли и сообщение в неё отправили - нет смысла перебирать оставшиеся комнаты
+                break
 
           if found_room==False:
             # Не нашли созданной комнаты, чтобы отправить туда сообщение.
