@@ -98,6 +98,15 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
     if cur_state == "dialog":
       bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
       dialog=session_data_room["cur_dialog"]
+
+      if "pause" in data["users"][user]["rooms"][room_id]:
+        if data["users"][user]["rooms"][room_id]["pause"]==True:
+          # комната в приостановленном режиме - сообщаем, что пересылка отключена:
+          if send_notice(room_id,"Пересылка сообщений из этой комнаты в ВК и обратно приостановлена. Для возобновления используйте команду '!resume %s' в комнате управления ботом\nВаше сообщение не было отправлено в ВК."%room_id) == False:
+            log.error("send_notice")
+            return False
+          return True
+
       if file_type!=None and file_url!=None:
         # отправка файла:
         if re.search("^image",file_type)!=None:
@@ -220,6 +229,8 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
   !dialogs - список всех ваших диалогов в ВК. В ответном сообщении Вам потребуется ввести номер диалога, чтобы начать общение в этом диалоге через матрицу.
   !rooms - список соответствий диалогов ВК и ваших комнат
   !delete room_id - удалить соответствение диалога ВК и комнаты MATRIX. Диалог в ВК останется и если придёт новое сообщение в нём - то бот заново создаст у вас комнту и соответстие. И вы получите сообщение из ВК.
+  !pause room_id - приостановить пересылку сообщений из ВК в указанную комнату MATRIX. Для включения используейте команду !resume room_id.
+  !resume room_id - возобновить пересылку сообщений из ВК в указанную комнату MATRIX. Для приостановки используейте команду !pause room_id.
   !stat - текущее состояние комнаты
   !reconnect - переподключиться к ВК
   !ping - текущее состояние соединения с ВК
@@ -241,6 +252,16 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
 
       elif re.search('^!delete .*', cmd.lower()) is not None:
         return delete_room_association(user,room,cmd)
+
+      elif re.search('^!pause .*', cmd.lower()) is not None:
+        return bridge_pause_for_room(user,room,cmd)
+
+      elif re.search('^!resume .*', cmd.lower()) is not None:
+        return bridge_resume_for_room(user,room,cmd)
+
+      elif re.search('^!rooms$', cmd.lower()) is not None or \
+        re.search('^!комнаты$', cmd.lower()) is not None:
+        return rooms_command(user,room,cmd)
 
     elif cur_state == "wait_vk_id":
       # парсинг ссылки
@@ -857,6 +878,68 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
     return None
   return message_id
 
+def bridge_pause_for_room(user,room,cmd):
+  global log
+  log.debug("=start function=")
+  global lock
+  global data
+  global client
+  try:
+    room_id=cmd.replace("!pause ","").strip()
+    if room_id in data["users"][user]["rooms"]:
+      # приостанавливаем пересылку сообщений из ВК в эту комнату:
+      log.info("!pause for room: '%s' for user '%s'"%(room_id,user))
+      vk_dialog_title=""
+      if "cur_dialog" in data["users"][user]["rooms"][room_id] and \
+        "title" in data["users"][user]["rooms"][room_id]["cur_dialog"]:
+        vk_dialog_title=data["users"][user]["rooms"][room_id]["cur_dialog"]["title"]
+      data["users"][user]["rooms"][room_id]["pause"]=True
+      log.info("save state data on disk")
+      save_data(data)
+      bot_system_message(user,"Успешно приостановил пересылку сообщений из ВК в соответствии: %s - %s"%(vk_dialog_title,room_id))
+      if send_notice(room_id,"Пересылка сообщений из ВК в эту комнату приостановлена. Для возобновления используйте команду '!resume %s' в комнате управления ботом"%room_id) == False:
+        log.error("send_notice")
+    else:
+      bot_system_message(user,"Ошибка! Неизвестная комната: %s"%room_id)
+      return False
+    return True
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute bridge_pause_for_room()")
+    bot_system_message(user,"внутренняя ошибка бота")
+    return False
+
+def bridge_resume_for_room(user,room,cmd):
+  global log
+  log.debug("=start function=")
+  global lock
+  global data
+  global client
+  try:
+    room_id=cmd.replace("!resume ","").strip()
+    if room_id in data["users"][user]["rooms"]:
+      # возобновляем пересылку сообщений из ВК в эту комнату:
+      log.info("!resume for room: '%s' for user '%s'"%(room_id,user))
+      vk_dialog_title=""
+      if "cur_dialog" in data["users"][user]["rooms"][room_id] and \
+        "title" in data["users"][user]["rooms"][room_id]["cur_dialog"]:
+        vk_dialog_title=data["users"][user]["rooms"][room_id]["cur_dialog"]["title"]
+      data["users"][user]["rooms"][room_id]["pause"]=False
+      log.info("save state data on disk")
+      save_data(data)
+      bot_system_message(user,"Успешно возобновил пересылку сообщений из ВК в соответствии: %s - %s"%(vk_dialog_title,room_id))
+      if send_notice(room_id,"Пересылка сообщений из ВК в эту комнату возобновлена. Для приостановки используйте команду '!pause %s' в комнате управления ботом"%room_id) == False:
+        log.error("send_notice")
+    else:
+      bot_system_message(user,"Ошибка! Неизвестная комната: %s"%room_id)
+      return False
+    return True
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute bridge_resume_for_room()")
+    bot_system_message(user,"внутренняя ошибка бота")
+    return False
+
 def delete_room_association(user,room,cmd):
   global log
   log.debug("=start function=")
@@ -921,7 +1004,7 @@ def delete_room_association(user,room,cmd):
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute delete_room_association()")
     bot_system_message(user,"внутренняя ошибка бота")
-    return None
+    return False
 
 def rooms_command(user,room,cmd):
   global log
