@@ -1019,6 +1019,9 @@ def rooms_command(user,room,cmd):
       if "cur_dialog" in item:
         message+="%d"%index
         message+=". " + item["cur_dialog"]["title"] + " - " + room_id + "\n"
+        if "pause" in item:
+          if item["pause"]==True:
+            message+=" (пересылка приостановлена)"
         index+=1
       else:
         log.debug("no cur_dialog for room: %s"%room_id)
