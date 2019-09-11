@@ -2884,6 +2884,11 @@ def vk_receiver_thread(user):
               if data["users"][user]["rooms"][room]["cur_dialog"]["id"] == vk_room_id:
                 # нашли комнату:
                 found_room=True
+                if "pause" in data["users"][user]["rooms"][room]:
+                  if data["users"][user]["rooms"][room]["pause"]==True:
+                    log.info("receive message for paused room (%(room)s) - use command '!resume %(room)s' for receive messages to this room from VK"%{"room":room})
+                    break
+
                 # проверяем, групповой ли это чат:
                 if chat_type == "chat":
                   # Если это групповой чат - нужно добавить имя отправителя, т.к. их там может быть много:
