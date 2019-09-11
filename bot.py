@@ -1668,14 +1668,14 @@ def main():
     x=0
     log.info("enter main loop")
     while True:
-      print("step %d"%x)
-      x+=1
+      log.debug("step %d"%x)
       # Запускаем незапущенные потоки - при старте бота или же если подключился новый пользователь:
-      num=start_vk_polls()
+      num=start_vk_polls(x)
       if num > 0:
         log.info("start_vk_polls() start %d new poller proccess for receive VK messages"%num)
       time.sleep(10)
       check_bot_status()
+      x+=1
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute main() at main loop")
@@ -1761,7 +1761,7 @@ def check_thread_exist(vk_id):
     return False
 
 # запуск потоков получения сообщений:
-def start_vk_polls():
+def start_vk_polls(check_iteration):
   global data
   global lock
   global log
@@ -1778,16 +1778,22 @@ def start_vk_polls():
         log.debug("release lock() after access global data")
         if check_thread_exist(vk_id) == False:
           log.info("no thread for user '%s' with name: '%s' - try start new tread"%(user,"vk"+str(vk_id)))
-          bot_system_message(user,"Не обнаружил потока, слушающего сообщения для пользователя '%s' и его VK id='%s'"%(user,str(vk_id)))
+          if check_iteration > 0:
+            # при первом запуске (и перезапуске сервиса) моста не сообщаем пользователям о запуске их потоков:
+            bot_system_message(user,"Не обнаружил потока, слушающего сообщения для пользователя '%s' и его VK id='%s'"%(user,str(vk_id)))
           # обновляем информацию о пользователе:
           if update_user_info(user) == False:
             log.error("update_user_info")
-          bot_system_message(user,"Запускаю процесс получения сообщений из ВК...")
+          if check_iteration > 0:
+            # при первом запуске (и перезапуске сервиса) моста не сообщаем пользователям о запуске их потоков:
+            bot_system_message(user,"Запускаю процесс получения сообщений из ВК...")
           t = threading.Thread(name='vk' + str(vk_id), target=vk_receiver_thread, args=(user,))
           t.setDaemon(True)
           t.start()
           started+=1
-          bot_system_message(user,"Успешно запустил процесс получения сообщений из ВК.")
+          if check_iteration > 0:
+            # при первом запуске (и перезапуске сервиса) моста не сообщаем пользователям о запуске их потоков:
+            bot_system_message(user,"Успешно запустил процесс получения сообщений из ВК.")
     return started
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
