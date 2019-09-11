@@ -99,10 +99,10 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
       dialog=session_data_room["cur_dialog"]
 
-      if "pause" in data["users"][user]["rooms"][room_id]:
-        if data["users"][user]["rooms"][room_id]["pause"]==True:
+      if "pause" in data["users"][user]["rooms"][room]:
+        if data["users"][user]["rooms"][room]["pause"]==True:
           # комната в приостановленном режиме - сообщаем, что пересылка отключена:
-          if send_notice(room_id,"Пересылка сообщений из этой комнаты в ВК и обратно приостановлена. Для возобновления используйте команду '!resume %s' в комнате управления ботом\nВаше сообщение не было отправлено в ВК."%room_id) == False:
+          if send_notice(room_id,"Пересылка сообщений из этой комнаты в ВК и обратно приостановлена. Для возобновления используйте команду '!resume %s' в комнате управления ботом\nВаше сообщение не было отправлено в ВК."%room) == False:
             log.error("send_notice")
             return False
           return True
