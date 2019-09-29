@@ -605,7 +605,11 @@ def get_new_vk_messages_v2(user):
     else:
       res={}
       res["messages"] = msgs["items"]
-      res["profiles"] = new["profiles"]
+      # при разговоре с админами иногда может не быть профилей O_o
+      if "profiles" in new:
+        res["profiles"] = new["profiles"]
+      else:
+        res["profiles"] = []
       res["conversations"] = new["conversations"]
     return res
 
