@@ -48,6 +48,14 @@ VK_POLLING_VERSION = '3'
 
 currentchat = {}
 
+if conf.use_proxy == True:
+  proxies = {
+    "http"  : conf.http_proxy,
+    "https" : conf.https_proxy
+  }
+else:
+  proxies = None
+
 def process_command(user,room,cmd,formated_message=None,format_type=None,reply_to_id=None,file_url=None,file_type=None):
   global client
   global log
@@ -488,7 +496,7 @@ def get_new_vk_messages_v2(user):
             "server":server,\
             "VK_POLLING_VERSION":VK_POLLING_VERSION\
           }
-        r = requests.post(url)
+        r = requests.post(url, proxies=proxies)
         log.debug("requests.post return: %s"%r.text)
         ret=json.loads(r.text)
         if "updates" not in ret:
@@ -762,7 +770,7 @@ def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
     log.debug(save_response)
     url = save_response['upload_url']
     files = {'video_file': (name,video_data,'multipart/form-data')}
-    r = requests.post(url, files=files)
+    r = requests.post(url, files=files, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
@@ -794,7 +802,7 @@ def vk_send_audio(vk_id, chat_id, name, audio_data, chat_type="user"):
     url = save_response['upload_url']
 
     files = {'video_file': (name,video_data,'multipart/form-data')}
-    r = requests.post(url, files=files)
+    r = requests.post(url, files=files, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
@@ -826,7 +834,7 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, chat_type="user"):
     # 
     url = response['upload_url']
     files = {'file': (name,doc_data,'multipart/form-data')}
-    r = requests.post(url, files=files)
+    r = requests.post(url, files=files, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     response=api.docs.save(file=ret['file'],title=name)
@@ -861,7 +869,7 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
     # 
     url = response['upload_url']
     files = {'photo': ('photo.png',photo_data,'multipart/form-data')}
-    r = requests.post(url, files=files)
+    r = requests.post(url, files=files, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     response=api.photos.saveMessagesPhoto(photo=ret['photo'],server=ret['server'],hash=ret['hash'])
@@ -1476,7 +1484,7 @@ def get_file(mxurl):
       return None
   # скачиваем файл по ссылке:
   try:
-    response = requests.get(full_url, stream=True)
+    response = requests.get(full_url, stream=True, proxies=proxies)
     data = response.content      # a `bytes` object
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
@@ -2485,9 +2493,9 @@ def get_data_from_url(url,referer=None):
   log.debug("=start function=")
   try:
     if referer!=None:
-      response = requests.get(url, stream=True,headers=dict(referer = referer))
+      response = requests.get(url, stream=True,headers=dict(referer = referer), proxies=proxies)
     else:
-      response = requests.get(url, stream=True)
+      response = requests.get(url, stream=True, proxies=proxies)
     data = response.content      # a `bytes` object
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
