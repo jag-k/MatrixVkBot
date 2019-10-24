@@ -2950,6 +2950,7 @@ def vk_receiver_thread(user):
             # получаем фото пользователя ВК с которым устанавливаем мост:
             room_avatar_mx_url=None
             user_photo_url=vk_get_user_photo_url(session, cur_dialog["id"])
+            user_photo_image_data=None
             if user_photo_url==None:
               log.error("get user vk profile photo for user_id=%d"%cur_dialog["id"])
             else:
