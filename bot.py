@@ -2815,7 +2815,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     log.debug("1")
 
     if len(text)>0:
-      if send_html(room,text) == True:
+      if send_html(room,text.replace('\n','<br>')) == True:
         send_status=True
       else:
         bot_system_message(user,"Ошибка: не смог отправить сообщение из ВК в комнату: '%s' сообщение были от: %s"%(room,sender_name))
