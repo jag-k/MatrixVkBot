@@ -1724,24 +1724,33 @@ def main():
   client = MatrixClient(conf.server)
   log.info("success init matrix-client")
 
-  try:
-      log.info("try login matrix-client")
-      token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
-      log.info("success login matrix-client")
-  except MatrixRequestError as e:
+  while True:
+    try:
+        log.info("try login matrix-client")
+        token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
+        log.info("success login matrix-client")
+    except MatrixRequestError as e:
       print(e)
       log.debug(e)
       if e.code == 403:
-          log.error("Bad username or password.")
-          sys.exit(4)
+        log.error("Bad username or password.")
       else:
-          log.error("Check your sever details are correct.")
-          sys.exit(2)
-  except MissingSchema as e:
-      log.error("Bad URL format.")
+        log.error("Check your sever details are correct.")
+      sys.exit(4)
+    except MissingSchema as e:
       print(e)
+      log.error("Bad URL format.")
+      log.error(get_exception_traceback_descr(e))
       log.debug(e)
-      sys.exit(1)
+      sys.exit(4)
+    except Exception as e:
+      log.error("Unknown connect error")
+      log.error(get_exception_traceback_descr(e))
+      log.debug(e)
+      log.info("sleep 30 second and try again...")
+      time.sleep(30)
+      continue
+    break
 
   try:
     log.info("try init listeners")
