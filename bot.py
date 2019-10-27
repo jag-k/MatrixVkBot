@@ -1893,6 +1893,7 @@ def start_vk_polls(check_iteration):
         log.debug("release lock() after access global data")
         if exit_flag:
           log.info("exit_flag=True, try stop thread for user %s"%user)
+          time.sleep(3)
           if stop_thread(vk_id) == False:
             log.error("stop_thread(vk_id)")
           else:
