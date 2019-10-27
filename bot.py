@@ -476,6 +476,20 @@ def get_new_vk_messages_v2(user):
     log.debug("release lock() after access global data")
     exit_flag=False
     while True:
+
+      # Проверка на необходимость выйти из потока:
+      exit_flag=False
+      log.debug("try lock() before access global data()")
+      with lock:
+        log.debug("success lock() before access global data")
+        if "exit" in data["users"][user]["vk"]:
+          exit_flag=data["users"][user]["vk"]["exit"]
+      log.debug("release lock() after access global data")
+      log.debug("thread: exit_flag=%d"%int(exit_flag))
+      if exit_flag==True:
+        log.info("get command to close thread for user %s - exit from thread..."%user)
+        return None
+
       try:
         if server=="" or key=="":
           log.warning('Need update server data')
@@ -488,6 +502,7 @@ def get_new_vk_messages_v2(user):
             "server":server,\
             "VK_POLLING_VERSION":VK_POLLING_VERSION\
           }
+        log.debug("try exec requests.post(%s)"%url)
         r = requests.post(url)
         log.debug("requests.post return: %s"%r.text)
         ret=json.loads(r.text)
@@ -509,7 +524,9 @@ def get_new_vk_messages_v2(user):
         log.debug("session=")
         log.debug(session)
         api = vk.API(session, v=VK_API_VERSION)
+        log.debug("try exec api.messages.getLongPollHistory()")
         response = api.messages.getLongPollServer(need_pts=1,v=VK_API_VERSION,lp_version=VK_POLLING_VERSION)
+        log.debug("end exec api.messages.getLongPollHistory()")
         ts=response["ts"]
         key=response["key"]
         server=response["server"]
@@ -543,19 +560,6 @@ def get_new_vk_messages_v2(user):
         # выходим из цикла ожидания событий:
         break
 
-      # Проверка на необходимость выйти из потока:
-      exit_flag=False
-      log.debug("try lock() before access global data()")
-      with lock:
-        log.debug("success lock() before access global data")
-        if "exit" in data["users"][user]["vk"]:
-          exit_flag=data["users"][user]["vk"]["exit"]
-      log.debug("release lock() after access global data")
-      log.debug("thread: exit_flag=%d"%int(exit_flag))
-      if exit_flag==True:
-        log.info("get command to close thread for user %s - exit from thread..."%user)
-        return None
-
     # получаем данные событий:
     log.debug("session=")
     log.debug(session)
@@ -568,11 +572,13 @@ def get_new_vk_messages_v2(user):
       #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
       #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"],"wait":25})
       #new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+      log.debug("try exec api.messages.getLongPollHistory()")
       new = api.messages.getLongPollHistory(
           ts=data["users"][user]["vk"]["ts"],\
           pts=data["users"][user]["vk"]["pts"],\
           lp_version=VK_POLLING_VERSION\
         )
+      log.debug("end exec api.messages.getLongPollHistory()")
     except vk.api.VkAPIError:
       timeout = 3
       log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
@@ -582,11 +588,13 @@ def get_new_vk_messages_v2(user):
         log.debug("success lock() before access global data")
         data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
       log.debug("release lock() after access global data")
+      log.debug("try exec api.messages.getLongPollHistory()")
       new = api.messages.getLongPollHistory(
           ts=data["users"][user]["vk"]["ts"],\
           pts=data["users"][user]["vk"]["pts"],\
           lp_version=VK_POLLING_VERSION\
         )
+      log.debug("end exec api.messages.getLongPollHistory()")
 
     log.debug("New data from VK:")
     log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
@@ -1866,8 +1874,9 @@ def stop_thread(vk_id):
     log.debug("=start function=")
     for th in threading.enumerate():
         if th.getName() == 'vk' + str(vk_id):
-          th._stop_event.set()
-          return True
+          #th._stop_event.set()
+          #return True
+          # FIXME
     return False
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
@@ -2908,7 +2917,9 @@ def vk_receiver_thread(user):
     log.debug("release lock() after access global data")
 
     while True:
+      log.debug("try exec get_new_vk_messages_v2(%s)"%user)
       res=get_new_vk_messages_v2(user)
+      log.debug("end exec get_new_vk_messages_v2(%s)"%user)
       if res != None:
         log.debug("res=")
         log.debug(json.dumps(res, indent=4, sort_keys=True,ensure_ascii=False))
