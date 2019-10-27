@@ -1877,6 +1877,7 @@ def stop_thread(vk_id):
           #th._stop_event.set()
           #return True
           # FIXME
+          log.info("FIXME pass hard stop thread - skip ")
     return False
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
