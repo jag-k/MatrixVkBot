@@ -1724,24 +1724,33 @@ def main():
   client = MatrixClient(conf.server)
   log.info("success init matrix-client")
 
-  try:
-      log.info("try login matrix-client")
-      token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
-      log.info("success login matrix-client")
-  except MatrixRequestError as e:
+  while True:
+    try:
+        log.info("try login matrix-client")
+        token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
+        log.info("success login matrix-client")
+    except MatrixRequestError as e:
       print(e)
       log.debug(e)
       if e.code == 403:
-          log.error("Bad username or password.")
-          sys.exit(4)
+        log.error("Bad username or password.")
       else:
-          log.error("Check your sever details are correct.")
-          sys.exit(2)
-  except MissingSchema as e:
-      log.error("Bad URL format.")
+        log.error("Check your sever details are correct.")
+      sys.exit(4)
+    except MissingSchema as e:
       print(e)
+      log.error("Bad URL format.")
+      log.error(get_exception_traceback_descr(e))
       log.debug(e)
-      sys.exit(1)
+      sys.exit(4)
+    except Exception as e:
+      log.error("Unknown connect error")
+      log.error(get_exception_traceback_descr(e))
+      log.debug(e)
+      log.info("sleep 30 second and try again...")
+      time.sleep(30)
+      continue
+    break
 
   try:
     log.info("try init listeners")
@@ -1851,6 +1860,20 @@ def check_thread_exist(vk_id):
     log.error("exception at execute check_thread_exist()")
     return False
 
+def stop_thread(vk_id):
+  global log
+  try:
+    log.debug("=start function=")
+    for th in threading.enumerate():
+        if th.getName() == 'vk' + str(vk_id):
+          th._stop_event.set()
+          return True
+    return False
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute stop_thread()")
+    return False
+
 # запуск потоков получения сообщений:
 def start_vk_polls(check_iteration):
   global data
@@ -1866,7 +1889,20 @@ def start_vk_polls(check_iteration):
           log.debug("success lock() before access global data")
           vk_data=data["users"][user]["vk"]
           vk_id=data["users"][user]["vk"]["vk_id"]
+          exit_flag=data["users"][user]["vk"]["exit"]
         log.debug("release lock() after access global data")
+        if exit_flag:
+          log.info("exit_flag=True, try stop thread for user %s"%user)
+          if stop_thread(vk_id) == False:
+            log.error("stop_thread(vk_id)")
+          else:
+            log.debug("success stop thread, try set exit_flag to False")
+            with lock:
+              log.debug("success lock() before access global data")
+              data["users"][user]["vk"]["exit"]=False
+            log.debug("release lock() after access global data")
+            log.debug("wait before restart thhread")
+            time.sleep(5)
         if check_thread_exist(vk_id) == False:
           log.info("no thread for user '%s' with name: '%s' - try start new tread"%(user,"vk"+str(vk_id)))
           if check_iteration > 0:
@@ -2806,7 +2842,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     log.debug("1")
 
     if len(text)>0:
-      if send_html(room,text) == True:
+      if send_html(room,text.replace('\n','<br>')) == True:
         send_status=True
       else:
         bot_system_message(user,"Ошибка: не смог отправить сообщение из ВК в комнату: '%s' сообщение были от: %s"%(room,sender_name))
@@ -2941,6 +2977,7 @@ def vk_receiver_thread(user):
             # получаем фото пользователя ВК с которым устанавливаем мост:
             room_avatar_mx_url=None
             user_photo_url=vk_get_user_photo_url(session, cur_dialog["id"])
+            user_photo_image_data=None
             if user_photo_url==None:
               log.error("get user vk profile photo for user_id=%d"%cur_dialog["id"])
             else:
@@ -3067,7 +3104,8 @@ if __name__ == '__main__':
     log.setLevel(logging.INFO)
 
   # create the logging file handler
-  fh = logging.FileHandler(conf.log_path)
+  #fh = logging.FileHandler(conf.log_path)
+  fh = logging.handlers.TimedRotatingFileHandler(conf.log_path, when=conf.log_backup_when, backupCount=conf.log_backup_count, encoding='utf-8')
   formatter = logging.Formatter('%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(funcName)s() %(levelname)s - %(message)s')
   fh.setFormatter(formatter)
 
