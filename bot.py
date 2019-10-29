@@ -475,6 +475,7 @@ def get_new_vk_messages_v2(user):
         key=data["users"][user]["vk"]["key"]
     log.debug("release lock() after access global data")
     exit_flag=False
+
     while True:
 
       # Проверка на необходимость выйти из потока:
@@ -1832,6 +1833,9 @@ def check_bot_status():
             log.debug("try lock() before access global data()")
             with lock:
               log.debug("success lock() before access global data")
+              if "exit" in data["users"][user]["vk"]:
+                log.debug("old status exit_flag for user %s = %s"%(user,str(data["users"][user]["vk"]["exit"])))
+              log.debug("set exit_flag for user '%s' to True"%user)
               data["users"][user]["vk"]["exit"]=True
             log.debug("release lock() after access global data")
           else:
@@ -1910,6 +1914,7 @@ def start_vk_polls(check_iteration):
             log.debug("success stop thread, try set exit_flag to False")
             with lock:
               log.debug("success lock() before access global data")
+              log.debug("set exit_flag for user '%s' to False"%user)
               data["users"][user]["vk"]["exit"]=False
             log.debug("release lock() after access global data")
             log.debug("wait before restart thhread")
@@ -3038,6 +3043,7 @@ def vk_receiver_thread(user):
         if "exit" in data["users"][user]["vk"]:
           exit_flag=data["users"][user]["vk"]["exit"]
         if exit_flag==True:
+          log.debug("set exit_flag for user '%s' to False"%user)
           data["users"][user]["vk"]["exit"]=False
       log.debug("release lock() after access global data")
       log.debug("thread: exit_flag=%d"%int(exit_flag))
