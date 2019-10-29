@@ -478,19 +478,6 @@ def get_new_vk_messages_v2(user):
 
     while True:
 
-      # Проверка на необходимость выйти из потока:
-      exit_flag=False
-      log.debug("try lock() before access global data()")
-      with lock:
-        log.debug("success lock() before access global data")
-        if "exit" in data["users"][user]["vk"]:
-          exit_flag=data["users"][user]["vk"]["exit"]
-      log.debug("release lock() after access global data")
-      log.debug("thread: exit_flag=%d"%int(exit_flag))
-      if exit_flag==True:
-        log.info("get command to close thread for user %s - exit from thread..."%user)
-        return None
-
       try:
         if server=="" or key=="":
           log.warning('Need update server data')
@@ -540,6 +527,21 @@ def get_new_vk_messages_v2(user):
           data["users"][user]["vk"]["ts_polling"]=ts
           save_data(data)
         log.debug("release lock() after access global data")
+
+        # Проверка на необходимость выйти из потока:
+        exit_flag=False
+        log.debug("try lock() before access global data()")
+        with lock:
+          log.debug("success lock() before access global data")
+          if "exit" in data["users"][user]["vk"]:
+            exit_flag=data["users"][user]["vk"]["exit"]
+        log.debug("release lock() after access global data")
+        log.debug("thread: exit_flag=%d"%int(exit_flag))
+        if exit_flag==True:
+          log.info("get command to close thread for user %s - exit from thread..."%user)
+          return None
+
+        # продолжаем попытки получения данных от vk
         continue
 
       # ищем нужные нам события (новые сообщения), типы всех событий описаны вот тут: https://vk.com/dev/using_longpoll_2
@@ -560,6 +562,33 @@ def get_new_vk_messages_v2(user):
       if new_events:
         # выходим из цикла ожидания событий:
         break
+
+      # Проверка на необходимость выйти из потока:
+      exit_flag=False
+      log.debug("try lock() before access global data()")
+      with lock:
+        log.debug("success lock() before access global data")
+        if "exit" in data["users"][user]["vk"]:
+          exit_flag=data["users"][user]["vk"]["exit"]
+      log.debug("release lock() after access global data")
+      log.debug("thread: exit_flag=%d"%int(exit_flag))
+      if exit_flag==True:
+        log.info("get command to close thread for user %s - exit from thread..."%user)
+        return None
+
+
+    # Проверка на необходимость выйти из потока:
+    exit_flag=False
+    log.debug("try lock() before access global data()")
+    with lock:
+      log.debug("success lock() before access global data")
+      if "exit" in data["users"][user]["vk"]:
+        exit_flag=data["users"][user]["vk"]["exit"]
+    log.debug("release lock() after access global data")
+    log.debug("thread: exit_flag=%d"%int(exit_flag))
+    if exit_flag==True:
+      log.info("get command to close thread for user %s - exit from thread..."%user)
+      return None
 
     # получаем данные событий:
     log.debug("session=")
