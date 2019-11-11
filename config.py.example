@@ -16,6 +16,10 @@ allow_domains=["matrix.org","example.net"]
 # разрешить приглашать бота в комнаты только указанному пользователю MATRIX:
 allow_users=["@user:domain.com"]
 
+# time
+post_timeout=20
+post_files_timeout=600
+
 data_file="data.json"
 
 log_path="MatrixVkBot.log"
