@@ -523,6 +523,7 @@ def get_new_vk_messages_v2(user):
         if exit_flag==True:
           log.info("get command to close thread for user %s - exit from thread..."%user)
           return None
+        log.debug("try again requests.post()")
         continue
 
       except Exception as e:
@@ -565,6 +566,7 @@ def get_new_vk_messages_v2(user):
         log.debug("release lock() after access global data")
 
         # продолжаем попытки получения данных от vk
+        log.debug("try again requests.post()")
         continue
 
       # ищем нужные нам события (новые сообщения), типы всех событий описаны вот тут: https://vk.com/dev/using_longpoll_2
