@@ -32,6 +32,7 @@ from PIL import Image
 from matrix_client.client import MatrixClient
 from matrix_client.api import MatrixRequestError
 from requests.exceptions import MissingSchema
+from requests import exceptions
 import config as conf
 
 client = None
