@@ -506,6 +506,24 @@ def get_new_vk_messages_v2(user):
         log.debug("release lock() after access global data")
         #log.debug("ret=")
         #log.debug(json.dumps(ret, indent=4, sort_keys=True,ensure_ascii=False))
+      except (exceptions.ConnectionError, TimeoutError, exceptions.Timeout, \
+          exceptions.ConnectTimeout, exceptions.ReadTimeout) as e:
+        log.debug("except timeout from requests.post(): %s"%e)
+
+        # Проверка на необходимость выйти из потока:
+        exit_flag=False
+        log.debug("try lock() before access global data()")
+        with lock:
+          log.debug("success lock() before access global data")
+          if "exit" in data["users"][user]["vk"]:
+            exit_flag=data["users"][user]["vk"]["exit"]
+        log.debug("release lock() after access global data")
+        log.debug("thread: exit_flag=%d"%int(exit_flag))
+        if exit_flag==True:
+          log.info("get command to close thread for user %s - exit from thread..."%user)
+          return None
+        continue
+
       except Exception as e:
         log.debug("except from requests.post()")
         log.debug("e=")
