@@ -32,6 +32,7 @@ from PIL import Image
 from matrix_client.client import MatrixClient
 from matrix_client.api import MatrixRequestError
 from requests.exceptions import MissingSchema
+from requests import exceptions
 import config as conf
 
 client = None
@@ -483,7 +484,9 @@ def get_new_vk_messages_v2(user):
         key=data["users"][user]["vk"]["key"]
     log.debug("release lock() after access global data")
     exit_flag=False
+
     while True:
+
       try:
         if server=="" or key=="":
           log.warning('Need update server data')
@@ -496,7 +499,8 @@ def get_new_vk_messages_v2(user):
             "server":server,\
             "VK_POLLING_VERSION":VK_POLLING_VERSION\
           }
-        r = requests.post(url, proxies=proxies)
+        log.debug("try exec requests.post(%s)"%url)
+        r = requests.post(url,timeout=conf.post_timeout,proxies=proxies)
         log.debug("requests.post return: %s"%r.text)
         ret=json.loads(r.text)
         if "updates" not in ret:
@@ -511,13 +515,51 @@ def get_new_vk_messages_v2(user):
         log.debug("release lock() after access global data")
         #log.debug("ret=")
         #log.debug(json.dumps(ret, indent=4, sort_keys=True,ensure_ascii=False))
-      except:
+      except (exceptions.ConnectionError, TimeoutError, exceptions.Timeout, \
+          exceptions.ConnectTimeout, exceptions.ReadTimeout) as e:
+        log.debug("except timeout from requests.post(): %s"%e)
+
+        # Проверка на необходимость выйти из потока:
+        exit_flag=False
+        log.debug("try lock() before access global data()")
+        with lock:
+          log.debug("success lock() before access global data")
+          if "exit" in data["users"][user]["vk"]:
+            exit_flag=data["users"][user]["vk"]["exit"]
+        log.debug("release lock() after access global data")
+        log.debug("thread: exit_flag=%d"%int(exit_flag))
+        if exit_flag==True:
+          log.info("get command to close thread for user %s - exit from thread..."%user)
+          return None
+        log.debug("try again requests.post()")
+        continue
+
+      except Exception as e:
+        log.debug("except from requests.post()")
+        log.debug("e=")
+        log.debug(e)
+
+        # Проверка на необходимость выйти из потока:
+        exit_flag=False
+        log.debug("try lock() before access global data()")
+        with lock:
+          log.debug("success lock() before access global data")
+          if "exit" in data["users"][user]["vk"]:
+            exit_flag=data["users"][user]["vk"]["exit"]
+        log.debug("release lock() after access global data")
+        log.debug("thread: exit_flag=%d"%int(exit_flag))
+        if exit_flag==True:
+          log.info("get command to close thread for user %s - exit from thread..."%user)
+          return None
+
         log.warning("error get event updates - try update session info")
         session = get_session(data["users"][user]["vk"]["vk_id"])
         log.debug("session=")
         log.debug(session)
         api = vk.API(session, v=VK_API_VERSION)
+        log.debug("try exec api.messages.getLongPollHistory()")
         response = api.messages.getLongPollServer(need_pts=1,v=VK_API_VERSION,lp_version=VK_POLLING_VERSION)
+        log.debug("end exec api.messages.getLongPollHistory()")
         ts=response["ts"]
         key=response["key"]
         server=response["server"]
@@ -530,6 +572,9 @@ def get_new_vk_messages_v2(user):
           data["users"][user]["vk"]["ts_polling"]=ts
           save_data(data)
         log.debug("release lock() after access global data")
+
+        # продолжаем попытки получения данных от vk
+        log.debug("try again requests.post()")
         continue
 
       # ищем нужные нам события (новые сообщения), типы всех событий описаны вот тут: https://vk.com/dev/using_longpoll_2
@@ -564,6 +609,20 @@ def get_new_vk_messages_v2(user):
         log.info("get command to close thread for user %s - exit from thread..."%user)
         return None
 
+
+    # Проверка на необходимость выйти из потока:
+    exit_flag=False
+    log.debug("try lock() before access global data()")
+    with lock:
+      log.debug("success lock() before access global data")
+      if "exit" in data["users"][user]["vk"]:
+        exit_flag=data["users"][user]["vk"]["exit"]
+    log.debug("release lock() after access global data")
+    log.debug("thread: exit_flag=%d"%int(exit_flag))
+    if exit_flag==True:
+      log.info("get command to close thread for user %s - exit from thread..."%user)
+      return None
+
     # получаем данные событий:
     log.debug("session=")
     log.debug(session)
@@ -576,11 +635,13 @@ def get_new_vk_messages_v2(user):
       #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
       #ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"],"wait":25})
       #new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+      log.debug("try exec api.messages.getLongPollHistory()")
       new = api.messages.getLongPollHistory(
           ts=data["users"][user]["vk"]["ts"],\
           pts=data["users"][user]["vk"]["pts"],\
           lp_version=VK_POLLING_VERSION\
         )
+      log.debug("end exec api.messages.getLongPollHistory()")
     except vk.api.VkAPIError:
       timeout = 3
       log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
@@ -590,11 +651,13 @@ def get_new_vk_messages_v2(user):
         log.debug("success lock() before access global data")
         data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
       log.debug("release lock() after access global data")
+      log.debug("try exec api.messages.getLongPollHistory()")
       new = api.messages.getLongPollHistory(
           ts=data["users"][user]["vk"]["ts"],\
           pts=data["users"][user]["vk"]["pts"],\
           lp_version=VK_POLLING_VERSION\
         )
+      log.debug("end exec api.messages.getLongPollHistory()")
 
     log.debug("New data from VK:")
     log.debug(json.dumps(new, indent=4, sort_keys=True,ensure_ascii=False))
@@ -770,7 +833,7 @@ def vk_send_video(vk_id, chat_id, name, video_data, chat_type="user"):
     log.debug(save_response)
     url = save_response['upload_url']
     files = {'video_file': (name,video_data,'multipart/form-data')}
-    r = requests.post(url, files=files, proxies=proxies)
+    r = requests.post(url, files=files, timeout=conf.post_files_timeout, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
@@ -802,7 +865,7 @@ def vk_send_audio(vk_id, chat_id, name, audio_data, chat_type="user"):
     url = save_response['upload_url']
 
     files = {'video_file': (name,video_data,'multipart/form-data')}
-    r = requests.post(url, files=files, proxies=proxies)
+    r = requests.post(url, files=files, timeout=conf.post_files_timeout, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     attachment_str="video%d_%d"%(ret['owner_id'],ret['video_id'])
@@ -834,7 +897,7 @@ def vk_send_doc(vk_id, chat_id, name, doc_data, chat_type="user"):
     # 
     url = response['upload_url']
     files = {'file': (name,doc_data,'multipart/form-data')}
-    r = requests.post(url, files=files, proxies=proxies)
+    r = requests.post(url, files=files, timeout=conf.post_files_timeout, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     response=api.docs.save(file=ret['file'],title=name)
@@ -869,7 +932,7 @@ def vk_send_photo(vk_id, chat_id, name, photo_data, chat_type="user"):
     # 
     url = response['upload_url']
     files = {'photo': ('photo.png',photo_data,'multipart/form-data')}
-    r = requests.post(url, files=files, proxies=proxies)
+    r = requests.post(url, files=files, timeout=conf.post_files_timeout, proxies=proxies)
     log.debug("requests.post return: %s"%r.text)
     ret=json.loads(r.text)
     response=api.photos.saveMessagesPhoto(photo=ret['photo'],server=ret['server'],hash=ret['hash'])
@@ -1732,24 +1795,33 @@ def main():
   client = MatrixClient(conf.server)
   log.info("success init matrix-client")
 
-  try:
-      log.info("try login matrix-client")
-      token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
-      log.info("success login matrix-client")
-  except MatrixRequestError as e:
+  while True:
+    try:
+        log.info("try login matrix-client")
+        token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
+        log.info("success login matrix-client")
+    except MatrixRequestError as e:
       print(e)
       log.debug(e)
       if e.code == 403:
-          log.error("Bad username or password.")
-          sys.exit(4)
+        log.error("Bad username or password.")
       else:
-          log.error("Check your sever details are correct.")
-          sys.exit(2)
-  except MissingSchema as e:
-      log.error("Bad URL format.")
+        log.error("Check your sever details are correct.")
+      sys.exit(4)
+    except MissingSchema as e:
       print(e)
+      log.error("Bad URL format.")
+      log.error(get_exception_traceback_descr(e))
       log.debug(e)
-      sys.exit(1)
+      sys.exit(4)
+    except Exception as e:
+      log.error("Unknown connect error")
+      log.error(get_exception_traceback_descr(e))
+      log.debug(e)
+      log.info("sleep 30 second and try again...")
+      time.sleep(30)
+      continue
+    break
 
   try:
     log.info("try init listeners")
@@ -1823,6 +1895,9 @@ def check_bot_status():
             log.debug("try lock() before access global data()")
             with lock:
               log.debug("success lock() before access global data")
+              if "exit" in data["users"][user]["vk"]:
+                log.debug("old status exit_flag for user %s = %s"%(user,str(data["users"][user]["vk"]["exit"])))
+              log.debug("set exit_flag for user '%s' to True"%user)
               data["users"][user]["vk"]["exit"]=True
             log.debug("release lock() after access global data")
           else:
@@ -1859,6 +1934,22 @@ def check_thread_exist(vk_id):
     log.error("exception at execute check_thread_exist()")
     return False
 
+def stop_thread(vk_id):
+  global log
+  try:
+    log.debug("=start function=")
+    for th in threading.enumerate():
+        if th.getName() == 'vk' + str(vk_id):
+          #th._stop_event.set()
+          #return True
+          # FIXME
+          log.info("FIXME pass hard stop thread - skip ")
+    return False
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute stop_thread()")
+    return False
+
 # запуск потоков получения сообщений:
 def start_vk_polls(check_iteration):
   global data
@@ -1874,7 +1965,22 @@ def start_vk_polls(check_iteration):
           log.debug("success lock() before access global data")
           vk_data=data["users"][user]["vk"]
           vk_id=data["users"][user]["vk"]["vk_id"]
+          exit_flag=data["users"][user]["vk"]["exit"]
         log.debug("release lock() after access global data")
+        if exit_flag:
+          log.info("exit_flag=True, try stop thread for user %s"%user)
+          time.sleep(3)
+          if stop_thread(vk_id) == False:
+            log.error("stop_thread(vk_id)")
+          else:
+            log.debug("success stop thread, try set exit_flag to False")
+            with lock:
+              log.debug("success lock() before access global data")
+              log.debug("set exit_flag for user '%s' to False"%user)
+              data["users"][user]["vk"]["exit"]=False
+            log.debug("release lock() after access global data")
+            log.debug("wait before restart thhread")
+            time.sleep(5)
         if check_thread_exist(vk_id) == False:
           log.info("no thread for user '%s' with name: '%s' - try start new tread"%(user,"vk"+str(vk_id)))
           if check_iteration > 0:
@@ -2814,7 +2920,7 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
     log.debug("1")
 
     if len(text)>0:
-      if send_html(room,text) == True:
+      if send_html(room,text.replace('\n','<br>')) == True:
         send_status=True
       else:
         bot_system_message(user,"Ошибка: не смог отправить сообщение из ВК в комнату: '%s' сообщение были от: %s"%(room,sender_name))
@@ -2879,7 +2985,9 @@ def vk_receiver_thread(user):
     log.debug("release lock() after access global data")
 
     while True:
+      log.debug("try exec get_new_vk_messages_v2(%s)"%user)
       res=get_new_vk_messages_v2(user)
+      log.debug("end exec get_new_vk_messages_v2(%s)"%user)
       if res != None:
         log.debug("res=")
         log.debug(json.dumps(res, indent=4, sort_keys=True,ensure_ascii=False))
@@ -2949,6 +3057,7 @@ def vk_receiver_thread(user):
             # получаем фото пользователя ВК с которым устанавливаем мост:
             room_avatar_mx_url=None
             user_photo_url=vk_get_user_photo_url(session, cur_dialog["id"])
+            user_photo_image_data=None
             if user_photo_url==None:
               log.error("get user vk profile photo for user_id=%d"%cur_dialog["id"])
             else:
@@ -2996,6 +3105,7 @@ def vk_receiver_thread(user):
         if "exit" in data["users"][user]["vk"]:
           exit_flag=data["users"][user]["vk"]["exit"]
         if exit_flag==True:
+          log.debug("set exit_flag for user '%s' to False"%user)
           data["users"][user]["vk"]["exit"]=False
       log.debug("release lock() after access global data")
       log.debug("thread: exit_flag=%d"%int(exit_flag))
@@ -3075,7 +3185,8 @@ if __name__ == '__main__':
     log.setLevel(logging.INFO)
 
   # create the logging file handler
-  fh = logging.FileHandler(conf.log_path)
+  #fh = logging.FileHandler(conf.log_path)
+  fh = logging.handlers.TimedRotatingFileHandler(conf.log_path, when=conf.log_backup_when, backupCount=conf.log_backup_count, encoding='utf-8')
   formatter = logging.Formatter('%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(funcName)s() %(levelname)s - %(message)s')
   fh.setFormatter(formatter)
 
