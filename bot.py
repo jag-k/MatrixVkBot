@@ -1882,16 +1882,30 @@ def check_bot_status():
               data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK - пробую переподключиться"
               data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
             log.debug("release lock() after access global data")
+            log.info("wait 240 sec before set exif_flag=1")
             # Задача на переподключение:
             time.sleep(240) # ждём на всякий случай:
+            log.info("again check connection before before set exif_flag=1")
+            # Заново проверяем статус - если ситуация не изменилась - то выставим статус на переподключение:
+            cur_ts = int(time.time())
             log.debug("try lock() before access global data()")
             with lock:
               log.debug("success lock() before access global data")
-              if "exit" in data["users"][user]["vk"]:
-                log.debug("old status exit_flag for user %s = %s"%(user,str(data["users"][user]["vk"]["exit"])))
-              log.debug("set exit_flag for user '%s' to True"%user)
-              data["users"][user]["vk"]["exit"]=True
+              ts_check_poll=user_data["vk"]["ts_check_poll"] 
             log.debug("release lock() after access global data")
+            delta=cur_ts-ts_check_poll
+            if delta > 600:
+              log.info("delta not connection = %d seconds. Set exit_flag = 1" % delta)
+              log.debug("try lock() before access global data()")
+              with lock:
+                log.debug("success lock() before access global data")
+                if "exit" in data["users"][user]["vk"]:
+                  log.debug("old status exit_flag for user %s = %s"%(user,str(data["users"][user]["vk"]["exit"])))
+                log.debug("set exit_flag for user '%s' to True"%user)
+                data["users"][user]["vk"]["exit"]=True
+              log.debug("release lock() after access global data")
+            else:
+              log.info("at 240 timeout bot was recconnect success - then we do not set exit_flag. Exit check_bot_status()")
           else:
             log.debug("try lock() before access global data()")
             with lock:
