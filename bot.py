@@ -2931,7 +2931,8 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
         text=m["text"]
     log.debug("1")
 
-    if len(text)>0:
+    if len(m["text"])>0:
+      log.debug("send text='%s'"%text)
       if send_html(room,text.replace('\n','<br>')) == True:
         send_status=True
       else:
@@ -2952,6 +2953,21 @@ def proccess_vk_message(bot_control_room,room,user,sender_name,m):
         bot_system_message(user,'Ошибка: не смог отправить местоположение из исходного сообщения ВК - местоположение было от: %s'%sender_name)
       else:
         send_status=True
+    # события в комнате:
+    if "action" in m:
+      action=m["action"]
+      if action["type"]=="chat_kick_user":
+        if send_notice(room,"Пользователь %s вышел из комнаты"%sender_name) == False:
+          log.error("send_notice")
+      elif action["type"]=="chat_invite_user":
+        if send_notice(room,"Пользователь %s вошёл в комнату"%sender_name) == False:
+          log.error("send_notice")
+      else:
+        # TODO добавить обработчики других событий:
+        if send_notice(room,"Неизвестный тип события (%s) для пользователя %s"%(action["type"],sender_name)) == False:
+          log.error("send_notice")
+
+
     if send_status==False:
       matrix_room_name=get_name_of_matrix_room(room)
       if matrix_room_name==None:
