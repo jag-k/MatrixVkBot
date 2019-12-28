@@ -503,6 +503,10 @@ def get_new_vk_messages_v2(user):
         r = requests.post(url,timeout=conf.post_timeout,proxies=proxies)
         log.debug("requests.post return: %s"%r.text)
         ret=json.loads(r.text)
+        if "failed" in ret and ( ret["failed"]==2 or ret["failed"]==3):
+          log.info("need update key or ts")
+          raise Exception("need update key or ts")
+
         if "updates" not in ret:
           log.warning("'No 'updates' in ret'")
           raise Exception("No 'updates' in ret")
@@ -556,20 +560,13 @@ def get_new_vk_messages_v2(user):
         session = get_session(data["users"][user]["vk"]["vk_id"])
         log.debug("session=")
         log.debug(session)
-        api = vk.API(session, v=VK_API_VERSION)
-        log.debug("try exec api.messages.getLongPollHistory()")
-        response = api.messages.getLongPollServer(need_pts=1,v=VK_API_VERSION,lp_version=VK_POLLING_VERSION)
-        log.debug("end exec api.messages.getLongPollHistory()")
-        ts=response["ts"]
-        key=response["key"]
-        server=response["server"]
+        log.debug("try exec get_tses()")
+        ts,pts,key,server=get_tses(session)
+        log.debug("end exec get_tses()")
         log.debug("try lock() before access global data()")
         with lock:
           log.debug("success lock() before access global data")
-          #data["users"][user]["vk"]["ts"]=ts
-          data["users"][user]["vk"]["server"]=server
-          data["users"][user]["vk"]["key"]=key
-          data["users"][user]["vk"]["ts_polling"]=ts
+          update_vk_tses_data(data,user,ts,pts,key,server)
           save_data(data)
         log.debug("release lock() after access global data")
 
@@ -646,15 +643,16 @@ def get_new_vk_messages_v2(user):
       timeout = 3
       log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
       time.sleep(timeout)
+      ts,pts,key,server=get_tses(session)
       log.debug("try lock() before access global data()")
       with lock:
         log.debug("success lock() before access global data")
-        data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+        update_vk_tses_data(data,user,ts,pts,key,server)
       log.debug("release lock() after access global data")
       log.debug("try exec api.messages.getLongPollHistory()")
       new = api.messages.getLongPollHistory(
-          ts=data["users"][user]["vk"]["ts"],\
-          pts=data["users"][user]["vk"]["pts"],\
+          ts=ts,\
+          pts=pts,\
           lp_version=VK_POLLING_VERSION\
         )
       log.debug("end exec api.messages.getLongPollHistory()")
@@ -714,9 +712,10 @@ def get_new_vk_messages(user):
       log.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
       time.sleep(timeout)
       log.debug("try lock() before access global data()")
+      ts,pts,key,server=get_tses(session)
       with lock:
         log.debug("success lock() before access global data")
-        data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+        update_vk_tses_data(data,user,ts,pts,key,server)
       log.debug("release lock() after access global data")
       ts_pts = ujson.dumps({"ts": data["users"][user]["vk"]["ts"], "pts": data["users"][user]["vk"]["pts"]})
       new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
@@ -763,13 +762,19 @@ def get_session(token):
   log.debug("=start function=")
   return vk.Session(access_token=token)
 
+def update_vk_tses_data(data, user, ts, pts, key, server):
+  data["users"][user]["vk"]["server"]=server
+  data["users"][user]["vk"]["key"]=key
+  data["users"][user]["vk"]["ts_polling"]=ts
+  data["users"][user]["vk"]["pts"]=pts
+
 def get_tses(session):
   global log
   try:
     log.debug("=start function=")
     api = vk.API(session, v=VK_API_VERSION)
-    ts = api.messages.getLongPollServer(need_pts=1)
-    return ts['ts'], ts['pts']
+    ts = api.messages.getLongPollServer(need_pts=1,v=VK_API_VERSION,lp_version=VK_POLLING_VERSION)
+    return ts['ts'], ts['pts'], ts['key'], ts['server']
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute get_tses()")
@@ -1890,16 +1895,31 @@ def check_bot_status():
               data["users"][user]["vk"]["connection_status_descr"]="более 10 минут не обновлялись данные из VK - пробую переподключиться"
               data["users"][user]["vk"]["connection_status_update_ts"]=cur_ts
             log.debug("release lock() after access global data")
+            log.info("wait 240 sec before set exif_flag=1")
             # Задача на переподключение:
             time.sleep(240) # ждём на всякий случай:
+            log.info("again check connection before before set exif_flag=1")
+            # Заново проверяем статус - если ситуация не изменилась - то выставим статус на переподключение:
+            cur_ts = int(time.time())
             log.debug("try lock() before access global data()")
             with lock:
               log.debug("success lock() before access global data")
-              if "exit" in data["users"][user]["vk"]:
-                log.debug("old status exit_flag for user %s = %s"%(user,str(data["users"][user]["vk"]["exit"])))
-              log.debug("set exit_flag for user '%s' to True"%user)
-              data["users"][user]["vk"]["exit"]=True
+              ts_check_poll=user_data["vk"]["ts_check_poll"] 
             log.debug("release lock() after access global data")
+            delta=cur_ts-ts_check_poll
+            if delta > 600:
+              log.info("delta not connection = %d seconds. Set exit_flag = 1" % delta)
+              log.debug("try lock() before access global data()")
+              with lock:
+                log.debug("success lock() before access global data")
+                if "exit" in data["users"][user]["vk"]:
+                  log.debug("old status exit_flag for user %s = %s"%(user,str(data["users"][user]["vk"]["exit"])))
+                log.debug("set exit_flag for user '%s' to True"%user)
+                data["users"][user]["vk"]["exit"]=True
+              log.debug("release lock() after access global data")
+            else:
+              data["users"][user]["vk"]["exit"]=False
+              log.info("at 240 timeout bot was recconnect success - then we do not set exit_flag. Exit check_bot_status()")
           else:
             log.debug("try lock() before access global data()")
             with lock:
@@ -2977,10 +2997,12 @@ def vk_receiver_thread(user):
       vk_id=data["users"][user]["vk"]["vk_id"]
     log.debug("release lock() after access global data")
     session = get_session(vk_id)
+    log.info("update tses")
+    ts,pts,key,server=get_tses(session)
     log.debug("try lock() before access global data()")
     with lock:
       log.debug("success lock() before access global data")
-      data["users"][user]["vk"]["ts"], data["users"][user]["vk"]["pts"] = get_tses(session)
+      update_vk_tses_data(data,user,ts,pts,key,server)
       bot_control_room=data["users"][user]["matrix_bot_data"]["control_room"]
     log.debug("release lock() after access global data")
 
