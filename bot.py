@@ -27,6 +27,7 @@ import traceback
 import vk
 import ujson
 import wget
+import uuid
 from PIL import Image
 
 from matrix_client.client import MatrixClient
@@ -1419,6 +1420,18 @@ def load_data():
     log.warning("Файл промежуточных данных не существует")
     reset=True
   if reset:
+    try:
+      backup_name=conf.data_file+'.failed.'+uuid.uuid4().hex
+      log.warning("сохраняем битый файл как '%s'"%backup_name)
+      f=open(conf.data_file,"r")
+      backup_data=f.read()
+      f.close()
+      f=open(backup_name,"w+")
+      f.write(backup_data)
+      f.close()
+    except:
+      log.error(get_exception_traceback_descr(e))
+      log.warning("ошибка копирования битого файла данных в резервную копию")
     log.warning("Сброс промежуточных данных")
     data={}
     data["users"]={}
