@@ -1412,6 +1412,20 @@ def load_data():
       if not "users" in data:
         log.warning("Битый файл сессии - сброс")
         reset=True
+      else:
+        # успешно загрузили файл состояния - он в хорошем состоянии - сохраняем его как бэкап:
+        try:
+          backup_name=conf.data_file+'.backup'
+          log.info("сохраняем успешно-загруженный файл как '%s'"%backup_name)
+          f=open(backup_name,"w+")
+          f.write(json.dumps(data, indent=4, sort_keys=True,ensure_ascii=False))
+          f.close()
+        except Exception as e:
+          log.error(get_exception_traceback_descr(e))
+          log.error("json.dump to '%s'"%conf.data_file)
+          print(json.dumps(data, indent=4, sort_keys=True,ensure_ascii=False))
+          sys.exit(1)
+            
     except Exception as e:
       log.error(get_exception_traceback_descr(e))
       log.warning("Битый файл сессии - сброс")
@@ -1421,6 +1435,7 @@ def load_data():
     reset=True
   if reset:
     try:
+      log.info("сохраняем копию битого файла основных данных")
       backup_name=conf.data_file+'.failed.'+uuid.uuid4().hex
       log.warning("сохраняем битый файл как '%s'"%backup_name)
       f=open(conf.data_file,"r")
@@ -1429,12 +1444,40 @@ def load_data():
       f=open(backup_name,"w+")
       f.write(backup_data)
       f.close()
-    except:
+      log.info("сохраняем бэкап последнего успешно-загруженного файла, чтобы его не перетёрло в случае сброса файла")
+      backup_name=conf.data_file+'.backup'
+      new_backup_name=conf.data_file+'.backup.'+uuid.uuid4().hex
+      log.info("сохраняем прошлый бэкап файла данны как '%s'"%new_backup_name)
+      f=open(backup_name,"r")
+      backup_data=f.read()
+      f.close()
+      f=open(new_backup_name,"w+")
+      f.write(backup_data)
+      f.close()
+    except Exception as e:
       log.error(get_exception_traceback_descr(e))
-      log.warning("ошибка копирования битого файла данных в резервную копию")
-    log.warning("Сброс промежуточных данных")
-    data={}
-    data["users"]={}
+      log.warning("ошибка копирования битого файла данных в резервную копию или копирования прошлого бэкапа")
+    if conf.try_recover_data_file_from_last_backup == True:
+      log.info("пробуем загрузить последний успешный бэкап")
+      try:
+        backup_name=conf.data_file+'.backup'
+        data_file = open(backup_name,'r')
+        data=json.loads(data_file.read())
+        data_file.close()
+        if not "users" in data:
+          log.warning("Битый файл сессии и в файле бэкапа :-( - сброс")
+          reset=True
+        else:
+          log.debug("Загрузили файл промежуточных данных из последнего бэкапа: '%s'" % backup_name)
+          reset=False
+      except Exception as e:
+        log.error(get_exception_traceback_descr(e))
+        log.warning("Битый файл сессии и в файле бэкапа или бэкапа не существует :-( - сброс")
+        reset=True
+    if reset:
+      log.warning("Сброс промежуточных данных")
+      data={}
+      data["users"]={}
     save_data(data)
   #debug_dump_json_to_file("debug_data_as_json.json",data)
   return data

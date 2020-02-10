@@ -21,6 +21,8 @@ post_timeout=20
 post_files_timeout=600
 
 data_file="data.json"
+# в случае повреждения файла данных - пробовать загрузить последний бэкап файла, который делался во время последней успешной его загрузки:
+try_recover_data_file_from_last_backup=True
 
 log_path="MatrixVkBot.log"
 # how match keep backup log files:
