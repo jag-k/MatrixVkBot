@@ -83,6 +83,7 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       data["users"][user]["rooms"]={}
     if "vk" not in data["users"][user]:
       data["users"][user]["vk"]={}
+      data["users"][user]["vk"]["exit"]=False
     if room not in data["users"][user]["rooms"]:
       data["users"][user]["rooms"][room]={}
       data["users"][user]["rooms"][room]["state"]="listen_command"
