@@ -572,12 +572,14 @@ def get_new_vk_messages_v2(user):
       # 5 - Редактирование сообщения. 
       # 51 - Один из параметров (состав, тема) беседы $chat_id были изменены. $self — 1 или 0 (вызваны ли изменения самим пользователем). 
       # 52 - Изменение информации чата $peer_id с типом $type_id, $info — дополнительная информация об изменениях, зависит от типа события.
+      # 70 - Пользователь $user_id совершил звонок с идентификатором $call_id. 
       ts=ret["ts"]
       new_events=False
       for update in ret["updates"]:
         if update[0]==4 \
           or update[0]==5 \
           or update[0]==51 \
+          or update[0]==70 \
           or update[0]==52:
           new_events=True
           log.info("getting info about new events - try get events...")
