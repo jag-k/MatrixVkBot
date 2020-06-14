@@ -570,8 +570,6 @@ def get_new_vk_messages_v2(user):
       # ищем нужные нам события (новые сообщения), типы всех событий описаны вот тут: https://vk.com/dev/using_longpoll_2
       # 4 - Добавление нового сообщения. 
       # 5 - Редактирование сообщения. 
-      # 8 - Друг $user_id стал онлайн.
-      # 9 - Друг $user_id стал оффлайн.
       # 51 - Один из параметров (состав, тема) беседы $chat_id были изменены. $self — 1 или 0 (вызваны ли изменения самим пользователем). 
       # 52 - Изменение информации чата $peer_id с типом $type_id, $info — дополнительная информация об изменениях, зависит от типа события.
       # 70 - Пользователь $user_id совершил звонок с идентификатором $call_id. 
@@ -582,8 +580,6 @@ def get_new_vk_messages_v2(user):
           or update[0]==5 \
           or update[0]==51 \
           or update[0]==70 \
-          or update[0]==8 \
-          or update[0]==9 \
           or update[0]==52:
           new_events=True
           log.info("getting info about new events - try get events...")
@@ -1859,6 +1855,7 @@ def main():
         log.info("try login matrix-client")
         token = client.login(username=conf.username, password=conf.password,device_id=conf.device_id)
         log.info("success login matrix-client")
+        client.api.sync(set_presence="unavailable")
     except MatrixRequestError as e:
       print(e)
       log.debug(e)
