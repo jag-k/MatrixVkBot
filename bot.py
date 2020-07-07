@@ -86,7 +86,6 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       data["users"][user]["vk"]["exit"]=False
       data["users"][user]["vk"]["ts"]=0
       data["users"][user]["vk"]["pts"]=0
-      data["users"][user]["vk"]["ts_polling"]=0
       data["users"][user]["vk"]["ts_check_poll"]=0
     if room not in data["users"][user]["rooms"]:
       data["users"][user]["rooms"][room]={}
@@ -476,8 +475,8 @@ def get_new_vk_messages_v2(user):
       log.debug("success lock() before access global data")
       if "server" in data["users"][user]["vk"]:
         server=data["users"][user]["vk"]["server"]
-      if "ts_polling" in data["users"][user]["vk"]:
-        ts=data["users"][user]["vk"]["ts_polling"]
+      if "ts" in data["users"][user]["vk"]:
+        ts=data["users"][user]["vk"]["ts"]
       if "key" in data["users"][user]["vk"]:
         key=data["users"][user]["vk"]["key"]
     log.debug("release lock() after access global data")
@@ -512,7 +511,7 @@ def get_new_vk_messages_v2(user):
         log.debug("try lock() before access global data()")
         with lock:
           log.debug("success lock() before access global data")
-          data["users"][user]["vk"]["ts_polling"]=ts
+          data["users"][user]["vk"]["ts"]=ts
           data["users"][user]["vk"]["ts_check_poll"]=int(time.time())
         log.debug("release lock() after access global data")
         #log.debug("ret=")
@@ -765,7 +764,7 @@ def get_session(token):
 def update_vk_tses_data(data, user, ts, pts, key, server):
   data["users"][user]["vk"]["server"]=server
   data["users"][user]["vk"]["key"]=key
-  data["users"][user]["vk"]["ts_polling"]=ts
+  data["users"][user]["vk"]["ts"]=ts
   data["users"][user]["vk"]["pts"]=pts
 
 def get_tses(session):
