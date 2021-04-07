@@ -15,7 +15,7 @@ _На данный момент ВКонтакте [блокирует](https://
 
 1. Заводим учётную запись для бота в Матрице, как для обычного пользователя на каком-либо сервере матрицы (вида @botvk:matrix.org)
 2. Скачиваем себе бота: `git clone https://github.com/progserega/MatrixVkBot.git`
-3. Ставим зависимости: `apt-get install python3-dev python3-pip; pip3 install matrix_client Pillow ujson setuptools vk wget`
+3. Ставим зависимости: `sudo apt-get install python3-dev python3-pip; pip3 install -r requirements.txt`
 4. Копируем файл конфигурации из примера: `cp config.py.example config.py` 
 5. Указываем в файле конфигурации `config.py` логин-пароль от учётной записи бота, созданной в пункте 1, а так же app-id (см. начало описание бота).
 6. Запускаем бота: `./bot.py`
