@@ -1,8 +1,11 @@
+Pillow 
 vk
-MatrixClient
+matrix_client
 pickle
 json
 requests
 threading
 ujson
 wget
+setuptools
+ujson
