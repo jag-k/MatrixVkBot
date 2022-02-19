@@ -263,6 +263,9 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
         """ 
         return send_message(room,answer)
 
+      # logout
+      elif re.search('^!logout$', cmd.lower()) is not None:
+        return logout_command(user,room,cmd)
       # login
       elif re.search('^!login$', cmd.lower()) is not None:
         return login_command(user,room,cmd)
@@ -1379,8 +1382,24 @@ def login_command(user,room,cmd):
     bot_system_message(user,"внутренняя ошибка бота")
     return None
 
-
-
+# logout из ВК:
+def logout_command(user,room,cmd):
+  global log
+  global lock
+  global data
+  try:
+    log.debug("=start function=")
+    log.debug("logout_command()")
+    data["users"][user]["vk"]={}
+    data["users"][user]["vk"]["exit"]=True
+    data["users"][user]["rooms"][room]["state"]="listen_command"
+    save_data(data)
+    send_message(room,'Сбросил данные VK\n!login для входа.')
+  except Exception as e:
+    log.error(get_exception_traceback_descr(e))
+    log.error("exception at execute logout_command()")
+    bot_system_message(user,"внутренняя ошибка бота")
+    return None
 
 def replace_shields(text):
   global log
