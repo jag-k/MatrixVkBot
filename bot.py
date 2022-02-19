@@ -191,6 +191,15 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       return True
 
     # Комната управления:
+    # проверяем, что есть структура комнаты управления:
+    if "matrix_bot_data" not in data["users"][user]:
+      log.warning("corrupt matrix_bot_data structure - fix it")
+      data["users"][user]["matrix_bot_data"]={}
+    if "control_room" not in data["users"][user]["matrix_bot_data"]:
+      log.warning("corrupt matrix_bot_data structure - fix it")
+      data["users"][user]["matrix_bot_data"]["control_room"]=room
+    save_data(data)
+
     # в любом состоянии отмена - всё отменяет:
     if re.search('^!stop$', cmd.lower()) is not None or \
         re.search('^!стоп$', cmd.lower()) is not None or \
@@ -210,11 +219,22 @@ def process_command(user,room,cmd,formated_message=None,format_type=None,reply_t
       return True
     elif re.search('^!ping$', cmd.lower()) is not None:
       message="==== Состояние связи с VK: ====\n"
-      message+="Состояние соединения: %s\n"%data["users"][user]["vk"]["connection_status"]
-      message+="Описание состояния соединения: %s\n"%data["users"][user]["vk"]["connection_status_descr"]
-
-      delta_ts = int(time.time())-data["users"][user]["vk"]["ts_check_poll"]
-      message+="Время прошедшее с предыдущего опроса событий в ВК: %d сек.\n"%delta_ts
+      log.debug("data['users'][user] = ")
+      log.debug(data["users"][user])
+      if "vk_id" not in data["users"][user]["vk"]:
+        log.warning("not correct vk structure (no vk_id) for user %s"%user)
+        message+="Состояние соединения: не установлено связи с учётной записью VK. Используйте команду !login\n"
+      elif "connection_status" not in data["users"][user]["vk"] or "connection_status_descr" not in data["users"][user]["vk"]:
+        log.warning("not correct vk structure for user %s"%user)
+        message+="Состояние соединения: неверная структура данных соединения - пробую переинициализировать\n"
+        data["users"][user]["vk"]["exit"]=True
+        data["users"][user]["vk"]["connection_status"]="error"
+        data["users"][user]["vk"]["connection_status_descr"]="reset empty status"
+      else:
+        message+="Состояние соединения: %s\n"%data["users"][user]["vk"]["connection_status"]
+        message+="Описание состояния соединения: %s\n"%data["users"][user]["vk"]["connection_status_descr"]
+        delta_ts = int(time.time())-data["users"][user]["vk"]["ts_check_poll"]
+        message+="Время прошедшее с предыдущего опроса событий в ВК: %d сек.\n"%delta_ts
       send_message(room,message)
       return True
     elif re.search('^!reconnect$', cmd.lower()) is not None:
@@ -1352,7 +1372,7 @@ def login_command(user,room,cmd):
       send_message(room,link)
       data["users"][user]["rooms"][room]["state"]="wait_vk_id"
     else:
-      send_message(room,'Вход уже выполнен!\n/logout для выхода.')
+      send_message(room,'Вход уже выполнен!\n!logout для выхода.')
   except Exception as e:
     log.error(get_exception_traceback_descr(e))
     log.error("exception at execute login_command()")
@@ -2033,7 +2053,11 @@ def start_vk_polls(check_iteration):
   try:
     log.debug("=start function=")
     started=0
+    log.info("num users connections: %d"%len(data["users"]))
+    if len(data["users"]) == 0:
+      log.info("no valid users data - skip start users poll-threads")
     for user in data["users"]:
+      log.debug("proccess user: %s"%user)
       if "vk" in data["users"][user] and "vk_id" in data["users"][user]["vk"]:
         log.debug("try lock() before access global data()")
         with lock:

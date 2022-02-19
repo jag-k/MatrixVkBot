@@ -1,10 +1,7 @@
 Pillow 
 vk
 matrix_client
-pickle
-json
 requests
-threading
 ujson
 wget
 setuptools
