@@ -9,3 +9,4 @@ ujson
 wget
 setuptools
 ujson
+pytest
