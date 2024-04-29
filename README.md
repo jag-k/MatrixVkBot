@@ -53,3 +53,13 @@ MATRIX->VK:
 3. обычные файлы
 4. видео
 5. Базовая поддержка оформления сообщений, как ответов на предыдущие сообщения.
+
+## Testing and Contributing Tests
+
+### Running Tests
+
+To run tests, ensure you have `pytest` installed and simply run `pytest` in the root directory of the project. This will automatically discover and run all tests in the `tests/` directory.
+
+### Contributing Tests
+
+Contributions to testing are welcome! If you're looking to add tests, please ensure they are placed in the appropriate file within the `tests/` directory. If you're adding a new category of tests, create a new test file prefixed with `test_`, for example, `test_newfeature.py`. Follow the existing test structure for consistency.
